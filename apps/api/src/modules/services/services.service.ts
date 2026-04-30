@@ -46,7 +46,7 @@ export class ServicesService {
       relations: ['project', 'activeDeployment', 'domains', 'environmentVars'],
     });
 
-    if (!service) throw new NotFoundException('Service not found');
+    if (!service?.project) throw new NotFoundException('Service not found');
     if (service.project.ownerId !== ownerId) throw new ForbiddenException();
 
     return service;

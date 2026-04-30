@@ -49,6 +49,17 @@ export interface ContainerInfo {
   labels: Record<string, string>;
 }
 
+export interface DockerHostInfo {
+  containers: number;
+  containersRunning: number;
+  images: number;
+  serverVersion: string;
+  operatingSystem: string;
+  architecture: string;
+  cpus: number;
+  memoryTotal: number;
+}
+
 export interface ExecResult {
   stdout: string;
   stderr: string;

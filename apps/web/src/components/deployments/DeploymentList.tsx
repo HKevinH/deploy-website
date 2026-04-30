@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ChevronDown, Clock, GitCommit } from 'lucide-react';
 import { Deployment } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import StatusBadge from './DeploymentStatus';
 import LogViewer from './LogViewer';
 
@@ -13,12 +14,13 @@ interface Props {
 }
 
 export default function DeploymentList({ deployments, activeDeploymentId }: Props) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (deployments.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-        No deployments yet. Trigger a build to get started.
+        {t('noDeployments')}
       </div>
     );
   }
@@ -59,7 +61,7 @@ export default function DeploymentList({ deployments, activeDeploymentId }: Prop
               </span>
               {d.id === activeDeploymentId && (
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                  active
+                  {t('active')}
                 </span>
               )}
               <ChevronDown

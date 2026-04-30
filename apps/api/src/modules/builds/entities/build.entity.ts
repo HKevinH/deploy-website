@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -15,6 +16,7 @@ export class Build {
   id: string;
 
   @ManyToOne(() => Service, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'service_id' })
   service: Service;
 
   @Column({ name: 'service_id' })

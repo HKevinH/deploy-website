@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -14,6 +15,7 @@ export class EnvironmentVar {
   id: string;
 
   @ManyToOne(() => Service, (s) => s.environmentVars, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'service_id' })
   service: Service;
 
   @Column({ name: 'service_id' })

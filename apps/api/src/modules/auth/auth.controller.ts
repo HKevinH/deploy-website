@@ -1,11 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { LoginDto, RegisterDto, CreateApiKeyDto, ConnectGithubDto, GithubOAuthCallbackDto } from './dto/login.dto';
+import { LoginDto, RegisterDto, CreateApiKeyDto, ConnectGithubDto, GithubOAuthCallbackDto, UpdateProfileDto } from './dto/login.dto';
 import { User } from '../users/entities/user.entity';
 
 @ApiTags('auth')
@@ -36,6 +36,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user profile' })
   me(@CurrentUser() user: User) {
     return user;
+  }
+
+  @Patch('me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current user profile' })
+  updateMe(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
+    return this.usersService.updateProfile(user.id, dto);
   }
 
   @Get('api-keys')

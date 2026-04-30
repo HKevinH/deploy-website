@@ -24,6 +24,7 @@ export class Service {
   name: string;
 
   @ManyToOne(() => Project, (p) => p.services, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'project_id' })
   project: Project;
 
   @Column({ name: 'project_id' })

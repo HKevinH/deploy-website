@@ -8,6 +8,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  setUser: (user: User) => void;
   isAuthenticated: () => boolean;
 }
 
@@ -33,6 +34,8 @@ export const useAuth = create<AuthState>()(
         localStorage.removeItem('paas_token');
         set({ user: null, token: null });
       },
+
+      setUser: (user) => set({ user }),
 
       isAuthenticated: () => !!get().token,
     }),

@@ -13,6 +13,7 @@ import { DeploymentsModule } from './modules/deployments/deployments.module';
 import { DomainsModule } from './modules/domains/domains.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { SystemModule } from './modules/system/system.module';
 
 import { DockerModule } from './infrastructure/docker/docker.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
@@ -57,6 +58,7 @@ import { GitModule } from './infrastructure/git/git.module';
     DomainsModule,
     LogsModule,
     WebhooksModule,
+    SystemModule,
   ],
 })
 export class AppModule {}

@@ -55,6 +55,13 @@ export class UsersService {
     return bcrypt.compare(password, user.passwordHash);
   }
 
+  async updateProfile(userId: string, data: { name?: string; avatarUrl?: string }): Promise<User> {
+    const user = await this.findById(userId);
+    user.name = data.name?.trim() || null;
+    user.avatarUrl = data.avatarUrl?.trim() || null;
+    return this.usersRepo.save(user);
+  }
+
   async updateGithubToken(userId: string, token: string, username: string): Promise<void> {
     const encryptedToken = this.crypto.encrypt(token);
     await this.usersRepo.update(userId, {

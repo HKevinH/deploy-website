@@ -32,6 +32,7 @@ export const authApi = {
   register: (email: string, password: string) =>
     api.post<{ token: string; user: User }>('/auth/register', { email, password }),
   me: () => api.get<User>('/auth/me'),
+  updateMe: (data: UpdateProfileInput) => api.patch<User>('/auth/me', data),
   gitConnections: () => api.get<GitConnection[]>('/auth/git-connections'),
   startGithubOAuth: () => api.get<{ configured: boolean; authorizationUrl: string | null }>('/auth/git-connections/github/start'),
   completeGithubOAuth: (code: string) =>
@@ -43,6 +44,10 @@ export const authApi = {
   },
   connectGithub: (token: string) => api.post<GitConnection>('/auth/git-connections/github', { token }),
   disconnectGithub: () => api.delete('/auth/git-connections/github'),
+};
+
+export const systemApi = {
+  status: () => api.get<SystemStatus>('/system/status'),
 };
 
 // ─── Projects ──────────────────────────────────────────────────────────────
@@ -105,7 +110,7 @@ export const envVarsApi = {
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-export interface User { id: string; email: string; role: string; createdAt: string; }
+export interface User { id: string; email: string; name: string | null; avatarUrl: string | null; role: string; createdAt: string; }
 export interface GitConnection { id: string; provider: 'github'; username: string; avatarUrl: string | null; connected?: boolean; }
 export interface GithubRepository { id: number; fullName: string; cloneUrl: string; private: boolean; defaultBranch: string; updatedAt: string; }
 export interface RepoDetection { type: string; label: string; dockerfilePath: string; dockerContext: string; port: number; notes: string[]; }
@@ -120,3 +125,11 @@ export interface ExecResult { stdout: string; stderr: string; exitCode: number |
 export interface CreateProjectInput { name: string; slug?: string; description?: string; }
 export interface CreateServiceInput { name: string; gitUrl?: string; gitBranch?: string; gitProvider?: string; port?: number; dockerfilePath?: string; dockerContext?: string; autoDeploy?: boolean; }
 export interface EnvVarInput { key: string; value: string; isSecret?: boolean; }
+export interface UpdateProfileInput { name?: string; avatarUrl?: string; }
+export interface SystemContainer { id: string; name: string; status: string; image: string; created: number; labels: Record<string, string>; }
+export interface SystemStatus {
+  api: { status: string; uptimeSeconds: number; memory: Record<string, number>; nodeVersion: string };
+  docker: { containers: number; containersRunning: number; images: number; serverVersion: string; operatingSystem: string; architecture: string; cpus: number; memoryTotal: number };
+  containers: SystemContainer[];
+  timestamp: string;
+}

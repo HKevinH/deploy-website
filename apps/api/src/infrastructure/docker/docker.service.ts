@@ -6,6 +6,7 @@ import {
   ContainerInfo,
   ContainerStats,
   CreateContainerOptions,
+  DockerHostInfo,
   ExecResult,
   RegistryAuth,
 } from './docker.types';
@@ -312,6 +313,33 @@ export class DockerService implements OnModuleInit {
       created: c.Created,
       labels: c.Labels,
     }));
+  }
+
+  async listAllContainers(): Promise<ContainerInfo[]> {
+    const containers = await this.docker.listContainers({ all: true });
+
+    return containers.map((c) => ({
+      id: c.Id,
+      name: c.Names[0]?.replace(/^\//, '') ?? '',
+      status: c.State,
+      image: c.Image,
+      created: c.Created,
+      labels: c.Labels,
+    }));
+  }
+
+  async getHostInfo(): Promise<DockerHostInfo> {
+    const info = await this.docker.info();
+    return {
+      containers: info.Containers,
+      containersRunning: info.ContainersRunning,
+      images: info.Images,
+      serverVersion: info.ServerVersion,
+      operatingSystem: info.OperatingSystem,
+      architecture: info.Architecture,
+      cpus: info.NCPU,
+      memoryTotal: info.MemTotal,
+    };
   }
 
   // ─── Private helpers ─────────────────────────────────────────────────────────

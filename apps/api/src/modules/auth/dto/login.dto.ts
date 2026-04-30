@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsUrl, Length, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -41,4 +41,17 @@ export class GithubOAuthCallbackDto {
   @ApiProperty({ example: 'github_oauth_code' })
   @IsString()
   code: string;
+}
+
+export class UpdateProfileDto {
+  @ApiProperty({ example: 'Kevin Alvear' })
+  @IsString()
+  @Length(2, 120)
+  @IsOptional()
+  name?: string;
+
+  @ApiProperty({ example: '/avatars/avatar-01.svg' })
+  @IsString()
+  @IsOptional()
+  avatarUrl?: string;
 }

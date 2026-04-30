@@ -18,6 +18,9 @@ export class User {
   @Column({ unique: true, length: 255 })
   email: string;
 
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  name: string | null;
+
   @Column({ name: 'password_hash' })
   @Exclude()
   passwordHash: string;

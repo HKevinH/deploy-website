@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -19,12 +20,14 @@ export class Deployment {
   version: number;
 
   @ManyToOne(() => Service, (s) => s.deployments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'service_id' })
   service: Service;
 
   @Column({ name: 'service_id' })
   serviceId: string;
 
   @ManyToOne(() => Build, { eager: true })
+  @JoinColumn({ name: 'build_id' })
   build: Build;
 
   @Column({ name: 'build_id' })
