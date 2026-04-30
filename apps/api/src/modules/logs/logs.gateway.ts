@@ -54,6 +54,9 @@ export class LogsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     @MessageBody() data: { buildId: string },
   ) {
     await client.join(`build:${data.buildId}`);
+    for (const log of this.logsService.getBuildLogs(data.buildId)) {
+      client.emit('build:log', { buildId: data.buildId, ...log });
+    }
     client.emit('subscribed', { room: `build:${data.buildId}` });
   }
 
@@ -63,6 +66,9 @@ export class LogsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     @MessageBody() data: { deploymentId: string },
   ) {
     await client.join(`deploy:${data.deploymentId}`);
+    for (const log of this.logsService.getDeployLogs(data.deploymentId)) {
+      client.emit('deploy:log', { deploymentId: data.deploymentId, ...log });
+    }
     client.emit('subscribed', { room: `deploy:${data.deploymentId}` });
   }
 

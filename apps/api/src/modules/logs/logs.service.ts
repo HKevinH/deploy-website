@@ -5,17 +5,21 @@ import { BuildStatus, DeploymentStatus, WsEvent } from '@paas/shared';
 @Injectable()
 export class LogsService {
   private server: Server | null = null;
+  private readonly buildLogBuffer = new Map<string, { line: string; timestamp: string }[]>();
+  private readonly deployLogBuffer = new Map<string, { line: string; timestamp: string }[]>();
 
   setServer(server: Server) {
     this.server = server;
   }
 
   emitBuildLog(buildId: string, serviceId: string, line: string) {
+    const timestamp = new Date().toISOString();
+    this.appendLog(this.buildLogBuffer, buildId, { line, timestamp });
     this.server?.to(`build:${buildId}`).emit(WsEvent.BUILD_LOG, {
       buildId,
       serviceId,
       line,
-      timestamp: new Date().toISOString(),
+      timestamp,
     });
   }
 
@@ -29,11 +33,13 @@ export class LogsService {
   }
 
   emitDeployLog(deploymentId: string, serviceId: string, line: string) {
+    const timestamp = new Date().toISOString();
+    this.appendLog(this.deployLogBuffer, deploymentId, { line, timestamp });
     this.server?.to(`deploy:${deploymentId}`).emit(WsEvent.DEPLOY_LOG, {
       deploymentId,
       serviceId,
       line,
-      timestamp: new Date().toISOString(),
+      timestamp,
     });
   }
 
@@ -61,5 +67,23 @@ export class LogsService {
       status,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  getBuildLogs(buildId: string) {
+    return this.buildLogBuffer.get(buildId) ?? [];
+  }
+
+  getDeployLogs(deploymentId: string) {
+    return this.deployLogBuffer.get(deploymentId) ?? [];
+  }
+
+  private appendLog(
+    buffer: Map<string, { line: string; timestamp: string }[]>,
+    id: string,
+    entry: { line: string; timestamp: string },
+  ) {
+    const logs = buffer.get(id) ?? [];
+    logs.push(entry);
+    buffer.set(id, logs.slice(-500));
   }
 }

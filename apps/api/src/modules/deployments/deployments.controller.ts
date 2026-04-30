@@ -13,6 +13,7 @@ import { ServicesService } from '../services/services.service';
 import { DockerService } from '../../infrastructure/docker/docker.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { DeploymentStatus, ServiceStatus } from '@paas/shared';
 
 @ApiTags('deployments')
 @ApiBearerAuth()
@@ -54,6 +55,17 @@ export class DeploymentsController {
     return this.deploymentsService.rollback(serviceId, user.id);
   }
 
+  @Post('start')
+  @ApiOperation({ summary: 'Create and start a deployment from the latest successful build' })
+  async startLatest(
+    @CurrentUser() user: User,
+    @Param('serviceId', ParseUUIDPipe) serviceId: string,
+  ) {
+    await this.servicesService.findOne(serviceId, user.id);
+    await this.servicesService.updateStatus(serviceId, ServiceStatus.DEPLOYING);
+    return this.deploymentsService.triggerLatestSuccessfulDeploy(serviceId, user.id);
+  }
+
   @Post(':id/restart')
   @ApiOperation({ summary: 'Restart the container for a deployment' })
   async restart(
@@ -66,9 +78,52 @@ export class DeploymentsController {
 
     if (deployment.containerId) {
       await this.dockerService.restartContainer(deployment.containerId);
+      await this.deploymentsService.updateStatus(id, DeploymentStatus.ACTIVE);
+      await this.servicesService.updateStatus(serviceId, ServiceStatus.RUNNING);
     }
 
     return { restarted: true };
+  }
+
+  @Post(':id/start')
+  @ApiOperation({ summary: 'Start the container for a deployment' })
+  async start(
+    @CurrentUser() user: User,
+    @Param('serviceId', ParseUUIDPipe) serviceId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.servicesService.findOne(serviceId, user.id);
+    const deployment = await this.deploymentsService.findById(id);
+
+    if (deployment.serviceId !== serviceId) throw new BadRequestException('Deployment does not belong to service');
+    if (!deployment.containerId) throw new BadRequestException('No container available for this deployment');
+
+    await this.dockerService.startContainer(deployment.containerId);
+    await this.deploymentsService.updateStatus(id, DeploymentStatus.ACTIVE);
+    await this.servicesService.updateStatus(serviceId, ServiceStatus.RUNNING);
+
+    return { started: true };
+  }
+
+  @Post(':id/stop')
+  @ApiOperation({ summary: 'Stop the container for a deployment' })
+  async stop(
+    @CurrentUser() user: User,
+    @Param('serviceId', ParseUUIDPipe) serviceId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.servicesService.findOne(serviceId, user.id);
+    const deployment = await this.deploymentsService.findById(id);
+
+    if (deployment.serviceId !== serviceId) throw new BadRequestException('Deployment does not belong to service');
+    if (!deployment.containerId) throw new BadRequestException('No container available for this deployment');
+
+    await this.dockerService.stopContainer(deployment.containerId);
+    await this.deploymentsService.updateStatus(id, DeploymentStatus.STOPPED);
+    await this.servicesService.updateActiveDeployment(serviceId, null);
+    await this.servicesService.updateStatus(serviceId, ServiceStatus.STOPPED);
+
+    return { stopped: true };
   }
 
   @Post(':id/exec')

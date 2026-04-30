@@ -4,13 +4,15 @@ import { Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { Deployment } from './entities/deployment.entity';
-import { DeploymentStatus } from '@paas/shared';
+import { Build } from '../builds/entities/build.entity';
+import { BuildStatus, DeploymentStatus } from '@paas/shared';
 import { QUEUE_DEPLOYMENTS } from '../../infrastructure/queue/queue.module';
 
 @Injectable()
 export class DeploymentsService {
   constructor(
     @InjectRepository(Deployment) private readonly repo: Repository<Deployment>,
+    @InjectRepository(Build) private readonly buildsRepo: Repository<Build>,
     @InjectQueue(QUEUE_DEPLOYMENTS) private readonly queue: Queue,
   ) {}
 
@@ -39,6 +41,19 @@ export class DeploymentsService {
     });
 
     return deployment;
+  }
+
+  async triggerLatestSuccessfulDeploy(serviceId: string, deployedBy?: string): Promise<Deployment> {
+    const build = await this.buildsRepo.findOne({
+      where: { serviceId, status: BuildStatus.SUCCESS },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!build?.imageName || !build.imageTag) {
+      throw new NotFoundException('No successful build image available to start');
+    }
+
+    return this.triggerDeploy(serviceId, build.id, deployedBy);
   }
 
   async findById(id: string): Promise<Deployment> {

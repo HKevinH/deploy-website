@@ -72,7 +72,7 @@ export default function DeploymentList({ deployments, activeDeploymentId }: Prop
 
           {expanded === d.id && (
             <div className="border-t border-slate-200 dark:border-slate-800">
-              <LogViewer deploymentId={d.id} />
+              <LogViewer deploymentId={d.id} status={d.status} />
             </div>
           )}
         </div>

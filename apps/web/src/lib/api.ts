@@ -93,6 +93,12 @@ export const deploymentsApi = {
   get: (serviceId: string, deploymentId: string) =>
     api.get<Deployment>(`/services/${serviceId}/deployments/${deploymentId}`),
   rollback: (serviceId: string) => api.post(`/services/${serviceId}/deployments/rollback`),
+  startLatest: (serviceId: string) =>
+    api.post<Deployment>(`/services/${serviceId}/deployments/start`),
+  start: (serviceId: string, deploymentId: string) =>
+    api.post(`/services/${serviceId}/deployments/${deploymentId}/start`),
+  stop: (serviceId: string, deploymentId: string) =>
+    api.post(`/services/${serviceId}/deployments/${deploymentId}/stop`),
   restart: (serviceId: string, deploymentId: string) =>
     api.post(`/services/${serviceId}/deployments/${deploymentId}/restart`),
   exec: (serviceId: string, deploymentId: string, command: string) =>

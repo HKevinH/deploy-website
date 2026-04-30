@@ -147,8 +147,21 @@ export class DockerService implements OnModuleInit {
   }
 
   async stopContainer(containerId: string, timeout = 30): Promise<void> {
-    const container = this.docker.getContainer(containerId);
-    await container.stop({ t: timeout });
+    try {
+      const container = this.docker.getContainer(containerId);
+      await container.stop({ t: timeout });
+    } catch (err: any) {
+      if (err?.statusCode !== 304) throw err;
+    }
+  }
+
+  async startContainer(containerId: string): Promise<void> {
+    try {
+      const container = this.docker.getContainer(containerId);
+      await container.start();
+    } catch (err: any) {
+      if (err?.statusCode !== 304) throw err;
+    }
   }
 
   async removeContainer(containerId: string, force = false): Promise<void> {
@@ -346,15 +359,23 @@ export class DockerService implements OnModuleInit {
 
   private buildTraefikLabels(options: CreateContainerOptions): Record<string, string> {
     const svc = options.containerName.replace(/[^a-zA-Z0-9-]/g, '-');
-    return {
+    const networkName = options.networkName ?? 'paas-network';
+    const isLocalDomain = options.domain === 'localhost' || options.domain.endsWith('.localhost');
+    const labels: Record<string, string> = {
       'traefik.enable': 'true',
+      'traefik.docker.network': networkName,
       [`traefik.http.routers.${svc}.rule`]: `Host(\`${options.domain}\`)`,
-      [`traefik.http.routers.${svc}.entrypoints`]: 'websecure',
-      [`traefik.http.routers.${svc}.tls.certresolver`]: 'letsencrypt',
+      [`traefik.http.routers.${svc}.entrypoints`]: isLocalDomain ? 'web' : 'websecure',
       [`traefik.http.services.${svc}.loadbalancer.server.port`]: String(options.port),
       [`traefik.http.routers.${svc}.middlewares`]: `${svc}-rl`,
       [`traefik.http.middlewares.${svc}-rl.ratelimit.average`]: '100',
       [`traefik.http.middlewares.${svc}-rl.ratelimit.burst`]: '50',
     };
+
+    if (!isLocalDomain) {
+      labels[`traefik.http.routers.${svc}.tls.certresolver`] = 'letsencrypt';
+    }
+
+    return labels;
   }
 }

@@ -1,10 +1,10 @@
 'use client';
 import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Activity, ChevronRight, Cpu, HardDrive, RefreshCw, RotateCcw, Terminal } from 'lucide-react';
+import { Activity, ChevronRight, Cpu, HardDrive, Play, RefreshCw, RotateCcw, Save, Square, Terminal } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { clsx } from 'clsx';
 import { servicesApi, deploymentsApi, buildsApi, Service, Deployment } from '@/lib/api';
@@ -18,8 +18,11 @@ export default function ServiceDetailPage() {
   const { t } = useI18n();
   const { projectId, serviceId } = useParams<{ projectId: string; serviceId: string }>();
   const [view, setView] = useState<'deployments' | 'buildLogs' | 'terminal'>('deployments');
+  const [portDraft, setPortDraft] = useState('');
+  const [savingPort, setSavingPort] = useState(false);
+  const [containerAction, setContainerAction] = useState<'start' | 'stop' | 'restart' | null>(null);
 
-  const { data: service } = useSWR<Service>(
+  const { data: service, mutate: mutateService } = useSWR<Service>(
     `service:${serviceId}`,
     () => servicesApi.get(serviceId).then((r) => r.data),
     { refreshInterval: 8000 },
@@ -42,6 +45,10 @@ export default function ServiceDetailPage() {
     [deployments, service?.activeDeploymentId],
   );
 
+  useEffect(() => {
+    if (service) setPortDraft(String(service.port));
+  }, [service?.port]);
+
   async function handleTriggerBuild() {
     try {
       await buildsApi.trigger(serviceId);
@@ -61,6 +68,54 @@ export default function ServiceDetailPage() {
       mutateDeployments();
     } catch {
       toast.error(t('rollbackError'));
+    }
+  }
+
+  async function handleSavePort() {
+    const nextPort = Number(portDraft);
+    if (!Number.isInteger(nextPort) || nextPort < 1 || nextPort > 65535) {
+      toast.error(t('invalidPort'));
+      return;
+    }
+
+    try {
+      setSavingPort(true);
+      await servicesApi.update(serviceId, { port: nextPort });
+      toast.success(t('portUpdated'));
+      mutateService();
+    } catch {
+      toast.error(t('portUpdateError'));
+    } finally {
+      setSavingPort(false);
+    }
+  }
+
+  async function handleContainerAction(action: 'start' | 'stop' | 'restart') {
+    if (!service) return;
+
+    const activeDeploymentId = service.activeDeploymentId;
+    if (!activeDeploymentId && action !== 'start') {
+      toast.error(t('noActiveDeployment'));
+      return;
+    }
+
+    try {
+      setContainerAction(action);
+      if (action === 'start' && activeDeploymentId) {
+        await deploymentsApi.start(serviceId, activeDeploymentId);
+      }
+      if (action === 'start' && !activeDeploymentId) {
+        await deploymentsApi.startLatest(serviceId);
+      }
+      if (action === 'stop' && activeDeploymentId) await deploymentsApi.stop(serviceId, activeDeploymentId);
+      if (action === 'restart' && activeDeploymentId) await deploymentsApi.restart(serviceId, activeDeploymentId);
+      toast.success(t(action === 'start' && !activeDeploymentId ? 'deploymentStarted' : action === 'start' ? 'containerStarted' : action === 'stop' ? 'containerStopped' : 'containerRestarted'));
+      mutateService();
+      mutateDeployments();
+    } catch {
+      toast.error(t('containerActionError'));
+    } finally {
+      setContainerAction(null);
     }
   }
 
@@ -101,7 +156,7 @@ export default function ServiceDetailPage() {
               </div>
               {service.domains?.[0] && (
                 <a
-                  href={`https://${service.domains[0].hostname}`}
+                  href={`${service.domains[0].sslEnabled ? 'https' : 'http'}://${service.domains[0].hostname}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-2 block text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
@@ -112,6 +167,52 @@ export default function ServiceDetailPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <div className="flex h-10 items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm transition-colors focus-within:border-brand-500 dark:border-slate-700 dark:bg-slate-950">
+              <label htmlFor="service-port" className="border-r border-slate-200 px-3 text-xs font-semibold uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                {t('port')}
+              </label>
+              <input
+                id="service-port"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={portDraft}
+                onChange={(e) => setPortDraft(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                className="h-full w-20 bg-transparent px-3 text-sm font-semibold text-slate-950 outline-none dark:text-white"
+              />
+              <button
+                onClick={handleSavePort}
+                disabled={savingPort || portDraft === String(service.port)}
+                className="inline-flex h-full w-10 items-center justify-center border-l border-slate-200 text-slate-500 transition-colors hover:bg-white hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white"
+                title={t('savePort')}
+              >
+                <Save className="h-4 w-4" />
+              </button>
+            </div>
+            <button
+              onClick={() => handleContainerAction('start')}
+              disabled={containerAction !== null}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <Play className={clsx('h-4 w-4', containerAction === 'start' && 'animate-pulse')} />
+              {t('start')}
+            </button>
+            <button
+              onClick={() => handleContainerAction('stop')}
+              disabled={!service.activeDeploymentId || containerAction !== null}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <Square className="h-4 w-4" />
+              {t('stop')}
+            </button>
+            <button
+              onClick={() => handleContainerAction('restart')}
+              disabled={!service.activeDeploymentId || containerAction !== null}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <RefreshCw className={clsx('h-4 w-4', containerAction === 'restart' && 'animate-spin')} />
+              {t('restart')}
+            </button>
             <button
               onClick={handleRollback}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { clsx } from 'clsx';
-import { streamContainerLogs } from '@/lib/websocket';
+import { subscribeToDeployLogs, streamContainerLogs } from '@/lib/websocket';
 
 interface LogLine {
   line: string;
@@ -11,10 +11,11 @@ interface LogLine {
 
 interface Props {
   deploymentId: string;
+  status?: string;
   autoFollow?: boolean;
 }
 
-export default function LogViewer({ deploymentId, autoFollow = true }: Props) {
+export default function LogViewer({ deploymentId, status, autoFollow = true }: Props) {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -27,7 +28,19 @@ export default function LogViewer({ deploymentId, autoFollow = true }: Props) {
     setStreaming(true);
     setLines([]);
 
-    const cancel = streamContainerLogs(
+    const cancelDeployLogs = subscribeToDeployLogs(
+      deploymentId,
+      (line, timestamp) => {
+        setLines((prev) => [
+          ...prev.slice(-500),
+          { line, stream: 'stdout', timestamp },
+        ]);
+      },
+      () => undefined,
+    );
+
+    const shouldStreamContainer = status === 'active' || status === 'stopped';
+    const cancelContainerLogs = shouldStreamContainer ? streamContainerLogs(
       deploymentId,
       (line, stream) => {
         setLines((prev) => [
@@ -36,13 +49,14 @@ export default function LogViewer({ deploymentId, autoFollow = true }: Props) {
         ]);
       },
       200,
-    );
+    ) : null;
 
     return () => {
-      cancel();
+      cancelDeployLogs();
+      cancelContainerLogs?.();
       setStreaming(false);
     };
-  }, [deploymentId, autoFollow]);
+  }, [deploymentId, status, autoFollow]);
 
   useEffect(() => {
     if (autoScroll) {
@@ -60,7 +74,7 @@ export default function LogViewer({ deploymentId, autoFollow = true }: Props) {
     <div className="relative">
       <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-2">
         <span className="font-mono text-xs text-slate-400">
-          {streaming ? 'streaming' : 'static'} - {lines.length} lines
+          {streaming ? 'deployment stream' : 'static'} - {lines.length} lines
         </span>
         <button
           onClick={() => setAutoScroll(!autoScroll)}
@@ -79,7 +93,7 @@ export default function LogViewer({ deploymentId, autoFollow = true }: Props) {
         className="h-72 space-y-0.5 overflow-y-auto bg-slate-950 p-4 font-mono text-xs"
       >
         {lines.length === 0 && (
-          <span className="text-slate-600">Waiting for logs...</span>
+          <span className="text-slate-600">Waiting for deployment logs...</span>
         )}
         {lines.map((l, i) => (
           <div key={i} className="flex gap-3 leading-5">

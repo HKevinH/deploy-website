@@ -71,7 +71,7 @@ export class ServicesService {
     await this.repo.update(id, { status });
   }
 
-  async updateActiveDeployment(serviceId: string, deploymentId: string): Promise<void> {
+  async updateActiveDeployment(serviceId: string, deploymentId: string | null): Promise<void> {
     await this.repo.update(serviceId, { activeDeploymentId: deploymentId });
   }
 
