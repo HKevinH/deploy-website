@@ -76,11 +76,17 @@ export class BuildsService {
     });
   }
 
-  async markFailed(id: string, errorMessage: string, durationSeconds?: number): Promise<void> {
+  async markFailed(
+    id: string,
+    errorMessage: string,
+    durationSeconds?: number,
+    logPath?: string,
+  ): Promise<void> {
     await this.repo.update(id, {
       status: BuildStatus.FAILED,
       errorMessage,
       durationSeconds: durationSeconds ?? null,
+      logPath: logPath ?? null,
     });
   }
 

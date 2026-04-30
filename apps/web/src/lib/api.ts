@@ -80,6 +80,8 @@ export const buildsApi = {
   get: (serviceId: string, buildId: string) =>
     api.get<Build>(`/services/${serviceId}/builds/${buildId}`),
   trigger: (serviceId: string) => api.post<Build>(`/services/${serviceId}/builds/trigger`),
+  logs: (serviceId: string, buildId: string) =>
+    api.get<{ content: string }>(`/services/${serviceId}/builds/${buildId}/logs`),
   downloadLogs: (serviceId: string, buildId: string) =>
     api.get<{ url: string }>(`/services/${serviceId}/builds/${buildId}/logs/download`),
 };
@@ -116,7 +118,7 @@ export interface GithubRepository { id: number; fullName: string; cloneUrl: stri
 export interface RepoDetection { type: string; label: string; dockerfilePath: string; dockerContext: string; port: number; notes: string[]; }
 export interface Project { id: string; name: string; slug: string; description: string | null; services: Service[]; createdAt: string; }
 export interface Service { id: string; name: string; status: string; gitUrl: string | null; gitBranch: string; gitProvider?: string | null; port: number; autoDeploy?: boolean; activeDeploymentId: string | null; activeDeployment: Deployment | null; domains: Domain[]; createdAt: string; }
-export interface Build { id: string; status: string; commitSha: string; commitMessage: string | null; commitAuthor: string | null; branch: string | null; imageName: string | null; imageTag: string | null; durationSeconds: number | null; createdAt: string; }
+export interface Build { id: string; status: string; commitSha: string; commitMessage: string | null; commitAuthor: string | null; branch: string | null; imageName: string | null; imageTag: string | null; logPath?: string | null; errorMessage?: string | null; durationSeconds: number | null; createdAt: string; }
 export interface Deployment { id: string; version: number; status: string; containerId: string | null; containerName: string | null; build: Build; durationSeconds: number | null; createdAt: string; }
 export interface Domain { id: string; hostname: string; isCustom: boolean; status: string; sslEnabled: boolean; }
 export interface EnvVarKey { id: string; key: string; isSecret: boolean; }

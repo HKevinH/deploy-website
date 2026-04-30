@@ -150,9 +150,9 @@ export class BuildsProcessor {
       log(`✗ Build failed: ${msg}`);
 
       const duration = Math.round((Date.now() - startTime) / 1000);
-      await this.buildsService.markFailed(buildId, msg, duration);
+      const logPath = await this.storageService.uploadBuildLog(buildId, logLines.join('\n'));
+      await this.buildsService.markFailed(buildId, msg, duration, logPath);
       await this.servicesService.updateStatus(serviceId, ServiceStatus.FAILED);
-      await this.storageService.uploadBuildLog(buildId, logLines.join('\n'));
 
       this.logsService.emitBuildStatus(buildId, serviceId, BuildStatus.FAILED);
       this.logger.error(`Build ${buildId} failed: ${msg}`);
@@ -200,7 +200,7 @@ export class BuildsProcessor {
   private createNodeDockerfile(contextDir: string, isNext: boolean): string {
     const packageManager = this.detectPackageManager(contextDir);
     const install = {
-      npm: 'npm ci',
+      npm: 'npm install',
       pnpm: 'npm install -g pnpm && pnpm install --frozen-lockfile',
       yarn: 'corepack enable && yarn install --frozen-lockfile',
     }[packageManager];

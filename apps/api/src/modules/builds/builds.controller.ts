@@ -63,4 +63,18 @@ export class BuildsController {
     const url = await this.storageService.getPresignedUrl(build.logPath);
     return { url };
   }
+
+  @Get(':buildId/logs')
+  @ApiOperation({ summary: 'Get build logs' })
+  async getLogs(
+    @CurrentUser() user: User,
+    @Param('serviceId', ParseUUIDPipe) serviceId: string,
+    @Param('buildId', ParseUUIDPipe) buildId: string,
+  ) {
+    await this.servicesService.findOne(serviceId, user.id);
+    const build = await this.buildsService.findById(buildId);
+    if (build.serviceId !== serviceId || !build.logPath) return { content: '' };
+    const content = await this.storageService.getBuildLog(buildId);
+    return { content };
+  }
 }

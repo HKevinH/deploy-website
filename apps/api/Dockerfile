@@ -1,7 +1,7 @@
 # ─── Development Stage ────────────────────────────────────────────────────────
 FROM node:20-alpine AS development
 
-RUN npm install -g pnpm
+RUN apk add --no-cache git openssh-client && npm install -g pnpm
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ CMD ["pnpm", "--filter", "@paas/api", "dev"]
 # ─── Builder Stage ─────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
-RUN npm install -g pnpm
+RUN apk add --no-cache git openssh-client && npm install -g pnpm
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ RUN pnpm --filter @paas/api build
 # ─── Production Stage ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS production
 
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init git openssh-client
 
 ENV NODE_ENV=production
 

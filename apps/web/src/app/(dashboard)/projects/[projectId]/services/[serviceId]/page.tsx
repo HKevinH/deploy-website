@@ -12,11 +12,12 @@ import { TranslationKey, useI18n } from '@/lib/i18n';
 import DeploymentList from '@/components/deployments/DeploymentList';
 import StatusBadge from '@/components/deployments/DeploymentStatus';
 import ExecTerminal from '@/components/deployments/ExecTerminal';
+import BuildLogsPanel from '@/components/deployments/BuildLogsPanel';
 
 export default function ServiceDetailPage() {
   const { t } = useI18n();
   const { projectId, serviceId } = useParams<{ projectId: string; serviceId: string }>();
-  const [view, setView] = useState<'deployments' | 'terminal'>('deployments');
+  const [view, setView] = useState<'deployments' | 'buildLogs' | 'terminal'>('deployments');
 
   const { data: service } = useSWR<Service>(
     `service:${serviceId}`,
@@ -45,6 +46,7 @@ export default function ServiceDetailPage() {
     try {
       await buildsApi.trigger(serviceId);
       toast.success(t('triggerBuildSuccess'));
+      setView('buildLogs');
       mutateDeployments();
     } catch {
       toast.error(t('triggerBuildError'));
@@ -150,6 +152,7 @@ export default function ServiceDetailPage() {
       <div className="mb-4 inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {[
           ['deployments', t('deployments')],
+          ['buildLogs', t('buildLogs')],
           ['terminal', t('terminal')],
         ].map(([key, label]) => (
           <button
@@ -178,6 +181,8 @@ export default function ServiceDetailPage() {
             activeDeploymentId={service.activeDeploymentId}
           />
         </div>
+      ) : view === 'buildLogs' ? (
+        <BuildLogsPanel serviceId={serviceId} />
       ) : (
         <ExecTerminal serviceId={serviceId} deploymentId={service.activeDeploymentId} />
       )}
