@@ -22,7 +22,7 @@ import { GitModule } from './infrastructure/git/git.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env.local', '.env'],
+      envFilePath: ['apps/api/.env.local', 'apps/api/.env', '.env.local', '.env'],
     }),
 
     TypeOrmModule.forRootAsync({

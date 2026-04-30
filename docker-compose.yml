@@ -26,7 +26,7 @@ services:
       - "443:443"
       - "8080:8080" # Dashboard (dev only)
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - //var/run/docker.sock:/var/run/docker.sock:ro
       - ./infrastructure/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./infrastructure/traefik/dynamic:/etc/traefik/dynamic:ro
       - traefik_certs:/certs
@@ -128,6 +128,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - ./apps/api/.env
     environment:
       NODE_ENV: development
       PORT: 3000
@@ -142,13 +144,9 @@ services:
       REGISTRY_PASSWORD: ""
       JWT_SECRET: super_secret_jwt_key_change_in_prod
       ENCRYPTION_KEY: 32_char_encryption_key_change_me
-      GITHUB_WEBHOOK_SECRET: github_webhook_secret
-      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
-      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
-      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-http://localhost:3001/git/callback}
     command: sh -c "CI=true pnpm install --frozen-lockfile --config.confirmModulesPurge=false --filter @paas/api... && pnpm --filter @paas/api dev"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - //var/run/docker.sock:/var/run/docker.sock
       - ./apps/api:/app/apps/api
       - ./packages/shared:/app/packages/shared
       - /app/node_modules

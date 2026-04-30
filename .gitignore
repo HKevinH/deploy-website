@@ -14,3 +14,4 @@ Thumbs.db
 /builds/
 *.pem
 pnpm-lock.yaml
+apps/web/tsconfig.tsbuildinfo

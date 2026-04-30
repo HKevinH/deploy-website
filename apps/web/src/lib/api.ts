@@ -36,6 +36,11 @@ export const authApi = {
   startGithubOAuth: () => api.get<{ configured: boolean; authorizationUrl: string | null }>('/auth/git-connections/github/start'),
   completeGithubOAuth: (code: string) =>
     api.post<GitConnection>('/auth/git-connections/github/callback', { code }),
+  githubRepositories: () => api.get<GithubRepository[]>('/auth/git-connections/github/repos'),
+  detectGithubRepository: (fullName: string) => {
+    const [owner, repo] = fullName.split('/');
+    return api.get<RepoDetection>(`/auth/git-connections/github/repos/${owner}/${repo}/detect`);
+  },
   connectGithub: (token: string) => api.post<GitConnection>('/auth/git-connections/github', { token }),
   disconnectGithub: () => api.delete('/auth/git-connections/github'),
 };
@@ -102,6 +107,8 @@ export const envVarsApi = {
 
 export interface User { id: string; email: string; role: string; createdAt: string; }
 export interface GitConnection { id: string; provider: 'github'; username: string; avatarUrl: string | null; connected?: boolean; }
+export interface GithubRepository { id: number; fullName: string; cloneUrl: string; private: boolean; defaultBranch: string; updatedAt: string; }
+export interface RepoDetection { type: string; label: string; dockerfilePath: string; dockerContext: string; port: number; notes: string[]; }
 export interface Project { id: string; name: string; slug: string; description: string | null; services: Service[]; createdAt: string; }
 export interface Service { id: string; name: string; status: string; gitUrl: string | null; gitBranch: string; gitProvider?: string | null; port: number; autoDeploy?: boolean; activeDeploymentId: string | null; activeDeployment: Deployment | null; domains: Domain[]; createdAt: string; }
 export interface Build { id: string; status: string; commitSha: string; commitMessage: string | null; commitAuthor: string | null; branch: string | null; imageName: string | null; imageTag: string | null; durationSeconds: number | null; createdAt: string; }
@@ -111,5 +118,5 @@ export interface EnvVarKey { id: string; key: string; isSecret: boolean; }
 export interface ContainerStats { cpuPercent: number; memoryUsage: number; memoryLimit: number; memoryPercent: number; }
 export interface ExecResult { stdout: string; stderr: string; exitCode: number | null; }
 export interface CreateProjectInput { name: string; slug?: string; description?: string; }
-export interface CreateServiceInput { name: string; gitUrl?: string; gitBranch?: string; gitProvider?: string; port?: number; dockerfilePath?: string; autoDeploy?: boolean; }
+export interface CreateServiceInput { name: string; gitUrl?: string; gitBranch?: string; gitProvider?: string; port?: number; dockerfilePath?: string; dockerContext?: string; autoDeploy?: boolean; }
 export interface EnvVarInput { key: string; value: string; isSecret?: boolean; }

@@ -102,6 +102,24 @@ export class AuthController {
     return this.usersService.connectGithubOAuth(user.id, dto.code);
   }
 
+  @Get('git-connections/github/repos')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List repositories available through the connected GitHub account' })
+  listGithubRepositories(@CurrentUser() user: User) {
+    return this.usersService.listGithubRepositories(user.id);
+  }
+
+  @Get('git-connections/github/repos/:owner/:repo/detect')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Detect build settings for a GitHub repository' })
+  detectGithubRepository(
+    @CurrentUser() user: User,
+    @Param('owner') owner: string,
+    @Param('repo') repo: string,
+  ) {
+    return this.usersService.detectGithubRepository(user.id, `${owner}/${repo}`);
+  }
+
   @Delete('git-connections/github')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Disconnect the GitHub account' })

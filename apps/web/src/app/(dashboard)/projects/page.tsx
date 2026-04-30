@@ -14,6 +14,7 @@ export default function ProjectsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +29,21 @@ export default function ProjectsPage() {
       toast.error('Failed to create project');
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleDelete(project: Project) {
+    if (!confirm(`Delete project "${project.name}" and all its services?`)) return;
+
+    setDeletingId(project.id);
+    try {
+      await projectsApi.delete(project.id);
+      toast.success('Project deleted');
+      mutate((current) => current?.filter((item) => item.id !== project.id), { revalidate: true });
+    } catch {
+      toast.error('Failed to delete project');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -108,7 +124,9 @@ export default function ProjectsPage() {
       {projects && projects.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} />
+            <div key={p.id} className={deletingId === p.id ? 'pointer-events-none opacity-60' : undefined}>
+              <ProjectCard project={p} onDelete={handleDelete} />
+            </div>
           ))}
         </div>
       )}

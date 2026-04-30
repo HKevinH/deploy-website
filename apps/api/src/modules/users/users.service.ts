@@ -6,6 +6,24 @@ import { User } from './entities/user.entity';
 import { ApiKey } from './entities/api-key.entity';
 import { CryptoService } from '../../infrastructure/crypto/crypto.service';
 
+export interface GithubRepository {
+  id: number;
+  fullName: string;
+  cloneUrl: string;
+  private: boolean;
+  defaultBranch: string;
+  updatedAt: string;
+}
+
+export interface RepoDetection {
+  type: 'dockerfile' | 'nextjs' | 'nestjs' | 'node' | 'turbo' | 'static' | 'unknown';
+  label: string;
+  dockerfilePath: string;
+  dockerContext: string;
+  port: number;
+  notes: string[];
+}
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -123,6 +141,130 @@ export class UsersService {
       githubUsername: null,
       avatarUrl: null,
     });
+  }
+
+  async listGithubRepositories(userId: string): Promise<GithubRepository[]> {
+    const token = await this.getDecryptedGithubToken(userId);
+    if (!token) throw new BadRequestException('GitHub is not connected');
+
+    const repos: GithubRepository[] = [];
+    let page = 1;
+
+    while (page <= 5) {
+      const res = await fetch(
+        `https://api.github.com/user/repos?affiliation=owner,collaborator,organization_member&sort=updated&per_page=100&page=${page}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'paas-platform',
+          },
+        },
+      );
+
+      if (!res.ok) {
+        throw new BadRequestException('Could not load GitHub repositories');
+      }
+
+      const batch = await res.json() as Array<{
+        id: number;
+        full_name: string;
+        clone_url: string;
+        private: boolean;
+        default_branch: string;
+        updated_at: string;
+      }>;
+
+      repos.push(...batch.map((repo) => ({
+        id: repo.id,
+        fullName: repo.full_name,
+        cloneUrl: repo.clone_url,
+        private: repo.private,
+        defaultBranch: repo.default_branch,
+        updatedAt: repo.updated_at,
+      })));
+
+      if (batch.length < 100) break;
+      page += 1;
+    }
+
+    return repos;
+  }
+
+  async detectGithubRepository(userId: string, repoFullName: string): Promise<RepoDetection> {
+    const token = await this.getDecryptedGithubToken(userId);
+    if (!token) throw new BadRequestException('GitHub is not connected');
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'paas-platform',
+    };
+
+    const rootRes = await fetch(`https://api.github.com/repos/${repoFullName}/contents`, { headers });
+    if (!rootRes.ok) throw new BadRequestException('Could not inspect repository');
+
+    const rootFiles = await rootRes.json() as Array<{ name: string; type: string }>;
+    const names = new Set(rootFiles.map((item) => item.name));
+    const notes: string[] = [];
+
+    if (names.has('Dockerfile')) {
+      notes.push('Dockerfile found at repository root.');
+      return { type: 'dockerfile', label: 'Dockerfile', dockerfilePath: 'Dockerfile', dockerContext: '.', port: 3000, notes };
+    }
+
+    const pkg = await this.fetchGithubJson<{ scripts?: Record<string, string>; dependencies?: Record<string, string>; devDependencies?: Record<string, string>; workspaces?: unknown }>(
+      `https://api.github.com/repos/${repoFullName}/contents/package.json`,
+      headers,
+    );
+    const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
+    const scripts = pkg?.scripts ?? {};
+    const hasTurbo = names.has('turbo.json') || Boolean(deps.turbo);
+
+    if (hasTurbo) {
+      notes.push('Turbo monorepo detected.');
+      return { type: 'turbo', label: 'Turbo monorepo', dockerfilePath: 'Dockerfile', dockerContext: '.', port: 3000, notes };
+    }
+
+    if (deps.next) {
+      notes.push('Next.js dependency detected.');
+      return { type: 'nextjs', label: 'Next.js app', dockerfilePath: 'Dockerfile', dockerContext: '.', port: 3000, notes };
+    }
+
+    if (deps['@nestjs/core']) {
+      notes.push('NestJS dependency detected.');
+      return { type: 'nestjs', label: 'NestJS API', dockerfilePath: 'Dockerfile', dockerContext: '.', port: 3000, notes };
+    }
+
+    if (pkg) {
+      notes.push(scripts.start ? 'Node start script detected.' : 'package.json detected.');
+      return { type: 'node', label: 'Node.js app', dockerfilePath: 'Dockerfile', dockerContext: '.', port: 3000, notes };
+    }
+
+    if (names.has('index.html')) {
+      notes.push('Static HTML detected.');
+      return { type: 'static', label: 'Static site', dockerfilePath: 'Dockerfile', dockerContext: '.', port: 80, notes };
+    }
+
+    return {
+      type: 'unknown',
+      label: 'Custom Dockerfile',
+      dockerfilePath: 'Dockerfile',
+      dockerContext: '.',
+      port: 3000,
+      notes: ['No framework preset detected.'],
+    };
+  }
+
+  private async fetchGithubJson<T>(url: string, headers: Record<string, string>): Promise<T | null> {
+    const res = await fetch(url, { headers });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new BadRequestException('Could not inspect repository files');
+
+    const payload = await res.json() as { content?: string; encoding?: string };
+    if (!payload.content || payload.encoding !== 'base64') return null;
+
+    return JSON.parse(Buffer.from(payload.content, 'base64').toString('utf8')) as T;
   }
 
   async getDecryptedGithubToken(userId: string): Promise<string | null> {

@@ -1,20 +1,35 @@
 'use client';
 import useSWR from 'swr';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { Activity, ChevronRight, GitBranch, Globe, Plus } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { Activity, ChevronRight, GitBranch, Globe, Plus, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { projectsApi, Project } from '@/lib/api';
 import StatusBadge from '@/components/deployments/DeploymentStatus';
 
 const fetcher = (id: string) => projectsApi.get(id).then((r) => r.data);
 
 export default function ProjectDetailPage() {
+  const router = useRouter();
   const { projectId } = useParams<{ projectId: string }>();
   const { data: project, error } = useSWR<Project>(
     projectId ? `/projects/${projectId}` : null,
     () => fetcher(projectId),
     { refreshInterval: 10000 },
   );
+
+  async function handleDelete() {
+    if (!project) return;
+    if (!confirm(`Delete project "${project.name}" and all its services?`)) return;
+
+    try {
+      await projectsApi.delete(project.id);
+      toast.success('Project deleted');
+      router.replace('/projects');
+    } catch {
+      toast.error('Failed to delete project');
+    }
+  }
 
   if (error) return <div className="p-8 text-rose-600 dark:text-rose-300">Failed to load project</div>;
 
@@ -38,13 +53,22 @@ export default function ProjectDetailPage() {
           <h1 className="text-2xl font-bold text-slate-950 dark:text-white">{project.name}</h1>
           <p className="mt-1 font-mono text-sm text-slate-500 dark:text-slate-400">{project.slug}</p>
         </div>
-        <Link
-          href={`/projects/${projectId}/services/new`}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add Service
-        </Link>
+        <div className="flex gap-2">
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+          <Link
+            href={`/projects/${projectId}/services/new`}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+          >
+            <Plus className="h-4 w-4" />
+            Add Service
+          </Link>
+        </div>
       </div>
 
       {project.services.length === 0 ? (
@@ -57,11 +81,11 @@ export default function ProjectDetailPage() {
             <Link
               key={service.id}
               href={`/projects/${projectId}/services/${service.id}`}
-              className="block rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-brand-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+              className="block rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-brand-500/40 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-700/60"
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-slate-800 dark:text-slate-300">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-slate-800 dark:text-brand-100">
                     <Activity className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
