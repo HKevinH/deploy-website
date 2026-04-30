@@ -1,0 +1,12 @@
+http:
+  routers:
+    paas-84b0a5ee-6fde-47cd-88a1-6821c74e736c:
+      rule: "Host(`web-prueba.localhost`)"
+      entryPoints:
+        - web
+      service: paas-84b0a5ee-6fde-47cd-88a1-6821c74e736c
+  services:
+    paas-84b0a5ee-6fde-47cd-88a1-6821c74e736c:
+      loadBalancer:
+        servers:
+          - url: "http://paas-aa78a0ca-84b0a5ee-v8:3006"

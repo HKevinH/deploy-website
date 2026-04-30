@@ -131,7 +131,13 @@ export class DockerService implements OnModuleInit {
         Healthcheck: {
           Test: [
             'CMD-SHELL',
-            `curl -sf http://localhost:${options.port}${options.healthCheck.path} || exit 1`,
+            [
+              `wget -q -O /dev/null http://localhost:${options.port}${options.healthCheck.path}`,
+              `curl -fsS http://localhost:${options.port}${options.healthCheck.path} >/dev/null`,
+              `wget -q -O /dev/null http://localhost:${options.port}/`,
+              `curl -fsS http://localhost:${options.port}/ >/dev/null`,
+              'exit 1',
+            ].join(' || '),
           ],
           Interval: (options.healthCheck.interval ?? 30) * 1_000_000_000,
           Timeout: (options.healthCheck.timeout ?? 5) * 1_000_000_000,
@@ -296,6 +302,23 @@ export class DockerService implements OnModuleInit {
     }
 
     return false;
+  }
+
+  async inspectContainerHealth(containerId: string): Promise<{
+    status: string | null;
+    failingStreak: number;
+    lastOutput: string | null;
+  }> {
+    const container = this.docker.getContainer(containerId);
+    const info = await container.inspect();
+    const health = info.State.Health;
+    const lastLog = health?.Log?.[health.Log.length - 1];
+
+    return {
+      status: health?.Status ?? null,
+      failingStreak: health?.FailingStreak ?? 0,
+      lastOutput: lastLog?.Output?.trim() || null,
+    };
   }
 
   // ─── Network ─────────────────────────────────────────────────────────────────

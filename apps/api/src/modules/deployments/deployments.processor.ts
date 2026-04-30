@@ -2,6 +2,8 @@ import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { DeploymentsService } from './deployments.service';
 import { DockerService } from '../../infrastructure/docker/docker.service';
 import { LogsService } from '../logs/logs.service';
@@ -103,7 +105,16 @@ export class DeploymentsProcessor {
         },
       });
 
+      await this.deploymentsService.updateContainerInfo(deploymentId, containerId, containerName);
       log(`Container started (${containerId.slice(0, 12)})`);
+      await this.writeTraefikRoute({
+        domain: primaryDomain.hostname,
+        containerName,
+        port: service.port ?? 3000,
+        serviceId: service.id,
+        tls: primaryDomain.sslEnabled,
+      });
+      log(`Route configured at ${primaryDomain.sslEnabled ? 'https' : 'http'}://${primaryDomain.hostname}`);
       await job.progress(60);
 
       if (service.healthCheckPath) {
@@ -111,8 +122,13 @@ export class DeploymentsProcessor {
         const healthy = await this.dockerService.waitForHealthy(containerId, 120_000);
 
         if (!healthy) {
+          const health = await this.dockerService.inspectContainerHealth(containerId);
           await this.dockerService.removeContainer(containerId, true);
-          throw new Error('Health check failed: container is unhealthy after 120s');
+          throw new Error(
+            health.lastOutput
+              ? `Health check failed: ${health.lastOutput}`
+              : 'Health check failed: container is unhealthy after 120s',
+          );
         }
 
         log('Container is healthy');
@@ -155,5 +171,38 @@ export class DeploymentsProcessor {
       this.logger.error(`Deployment ${deploymentId} failed: ${msg}`);
       throw err;
     }
+  }
+
+  private async writeTraefikRoute(options: {
+    domain: string;
+    containerName: string;
+    port: number;
+    serviceId: string;
+    tls: boolean;
+  }): Promise<void> {
+    const dynamicDir = this.config.get<string>('TRAEFIK_DYNAMIC_DIR', '/app/traefik-dynamic');
+    const routeName = `paas-${options.serviceId.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+    const filePath = path.join(dynamicDir, `${routeName}.yml`);
+    const entryPoint = options.tls ? 'websecure' : 'web';
+    const tlsBlock = options.tls
+      ? `      tls:\n        certResolver: letsencrypt\n`
+      : '';
+
+    const config = `http:
+  routers:
+    ${routeName}:
+      rule: "Host(\`${options.domain}\`)"
+      entryPoints:
+        - ${entryPoint}
+      service: ${routeName}
+${tlsBlock}  services:
+    ${routeName}:
+      loadBalancer:
+        servers:
+          - url: "http://${options.containerName}:${options.port}"
+`;
+
+    await fs.mkdir(dynamicDir, { recursive: true });
+    await fs.writeFile(filePath, config, 'utf8');
   }
 }

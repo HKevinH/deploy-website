@@ -98,7 +98,17 @@ export class DeploymentsController {
     if (deployment.serviceId !== serviceId) throw new BadRequestException('Deployment does not belong to service');
     if (!deployment.containerId) throw new BadRequestException('No container available for this deployment');
 
-    await this.dockerService.startContainer(deployment.containerId);
+    try {
+      await this.dockerService.startContainer(deployment.containerId);
+    } catch (err: any) {
+      if (err?.statusCode !== 404) throw err;
+
+      await this.deploymentsService.updateStatus(id, DeploymentStatus.FAILED);
+      await this.servicesService.updateActiveDeployment(serviceId, null);
+      await this.servicesService.updateStatus(serviceId, ServiceStatus.DEPLOYING);
+      return this.deploymentsService.triggerLatestSuccessfulDeploy(serviceId, user.id);
+    }
+
     await this.deploymentsService.updateStatus(id, DeploymentStatus.ACTIVE);
     await this.servicesService.updateStatus(serviceId, ServiceStatus.RUNNING);
 

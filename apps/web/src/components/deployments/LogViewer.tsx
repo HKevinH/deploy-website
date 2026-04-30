@@ -39,7 +39,7 @@ export default function LogViewer({ deploymentId, status, autoFollow = true }: P
       () => undefined,
     );
 
-    const shouldStreamContainer = status === 'active' || status === 'stopped';
+    const shouldStreamContainer = status === 'active' || status === 'stopped' || status === 'deploying';
     const cancelContainerLogs = shouldStreamContainer ? streamContainerLogs(
       deploymentId,
       (line, stream) => {

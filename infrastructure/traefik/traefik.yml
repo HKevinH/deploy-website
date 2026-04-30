@@ -28,11 +28,6 @@ certificatesResolvers:
         entryPoint: web
 
 providers:
-  docker:
-    endpoint: "unix:///var/run/docker.sock"
-    exposedByDefault: false
-    network: traefik-public
-    watch: true
   file:
     directory: /etc/traefik/dynamic
     watch: true

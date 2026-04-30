@@ -18,7 +18,7 @@ volumes:
 services:
   # ─── Reverse Proxy ────────────────────────────────────────────────────────
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.3
     container_name: paas-traefik
     restart: unless-stopped
     ports:
@@ -26,7 +26,6 @@ services:
       - "443:443"
       - "8080:8080" # Dashboard (dev only)
     volumes:
-      - //var/run/docker.sock:/var/run/docker.sock:ro
       - ./infrastructure/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./infrastructure/traefik/dynamic:/etc/traefik/dynamic:ro
       - traefik_certs:/certs
@@ -149,6 +148,7 @@ services:
       - //var/run/docker.sock:/var/run/docker.sock
       - ./apps/api:/app/apps/api
       - ./packages/shared:/app/packages/shared
+      - ./infrastructure/traefik/dynamic/generated:/app/traefik-dynamic
       - /app/node_modules
       - /app/apps/api/node_modules
     networks:

@@ -85,6 +85,13 @@ export class DeploymentsService {
     await this.repo.update(id, { status });
   }
 
+  async updateContainerInfo(id: string, containerId: string, containerName: string): Promise<void> {
+    await this.repo.update(id, {
+      containerId,
+      containerName,
+    });
+  }
+
   async markSuccess(id: string, containerId: string, containerName: string, durationSeconds: number): Promise<void> {
     await this.repo.update(id, {
       status: DeploymentStatus.ACTIVE,
