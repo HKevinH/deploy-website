@@ -1,0 +1,31 @@
+{
+  "name": "paas-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "api:dev": "pnpm --filter @paas/api dev",
+    "web:dev": "pnpm --filter @paas/web dev",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "cpu-features",
+      "msgpackr-extract",
+      "protobufjs",
+      "ssh2"
+    ]
+  }
+}

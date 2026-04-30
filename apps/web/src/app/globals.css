@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-50: #f0f4ff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --font-mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
+}
+
+@layer base {
+  :root {
+    --scrollbar-color: #cbd5e1;
+    --toast-bg: #ffffff;
+    --toast-text: #0f172a;
+    --toast-border: #e2e8f0;
+  }
+
+  .dark {
+    --scrollbar-color: #334155;
+    --toast-bg: #0f172a;
+    --toast-text: #f8fafc;
+    --toast-border: #1e293b;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-color) transparent;
+  }
+
+  *::-webkit-scrollbar { width: 6px; height: 6px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background-color: var(--scrollbar-color); border-radius: 3px; }
+}
+
+@layer utilities {
+  .font-mono-code { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-transparent focus:ring-2 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white;
+  }
+}

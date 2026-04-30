@@ -1,0 +1,199 @@
+version: "3.9"
+
+networks:
+  paas-network:
+    name: paas-network
+    driver: bridge
+  traefik-public:
+    name: traefik-public
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  registry_data:
+  traefik_certs:
+
+services:
+  # ─── Reverse Proxy ────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.0
+    container_name: paas-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard (dev only)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infrastructure/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./infrastructure/traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik_certs:/certs
+    networks:
+      - traefik-public
+      - paas-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=web"
+
+  # ─── Database ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: paas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paas
+      POSTGRES_USER: paas_user
+      POSTGRES_PASSWORD: paas_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - paas-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paas_user -d paas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Cache & Queue ────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: paas-redis
+    restart: unless-stopped
+    command: redis-server --requirepass redis_secret --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - paas-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Object Storage (S3-compatible) ───────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: paas-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_admin
+      MINIO_ROOT_PASSWORD: minio_secret
+    volumes:
+      - minio_data:/data
+    networks:
+      - paas-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio-console.rule=Host(`minio.localhost`)"
+      - "traefik.http.routers.minio-console.entrypoints=web"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Private Container Registry ───────────────────────────────────────────
+  registry:
+    image: registry:2.8
+    container_name: paas-registry
+    restart: unless-stopped
+    environment:
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+      REGISTRY_HTTP_SECRET: registry_http_secret
+    volumes:
+      - registry_data:/var/lib/registry
+      - ./infrastructure/registry/config.yml:/etc/docker/registry/config.yml:ro
+    networks:
+      - paas-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.registry.rule=Host(`registry.localhost`)"
+      - "traefik.http.routers.registry.entrypoints=web"
+      - "traefik.http.services.registry.loadbalancer.server.port=5000"
+
+  # ─── Backend API ──────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: development
+    container_name: paas-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://paas_user:paas_secret@postgres:5432/paas
+      REDIS_URL: redis://:redis_secret@redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: minio_admin
+      MINIO_SECRET_KEY: minio_secret
+      REGISTRY_URL: registry.localhost
+      REGISTRY_USERNAME: ""
+      REGISTRY_PASSWORD: ""
+      JWT_SECRET: super_secret_jwt_key_change_in_prod
+      ENCRYPTION_KEY: 32_char_encryption_key_change_me
+      GITHUB_WEBHOOK_SECRET: github_webhook_secret
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-http://localhost:3001/git/callback}
+    command: sh -c "CI=true pnpm install --frozen-lockfile --config.confirmModulesPurge=false --filter @paas/api... && pnpm --filter @paas/api dev"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./apps/api:/app/apps/api
+      - ./packages/shared:/app/packages/shared
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    networks:
+      - paas-network
+      - traefik-public
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.localhost`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.services.api.loadbalancer.server.port=3000"
+
+  # ─── Frontend ─────────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: development
+    container_name: paas-web
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NEXT_PUBLIC_WS_URL: ws://localhost:3000
+    command: sh -c "CI=true pnpm install --frozen-lockfile --config.confirmModulesPurge=false --filter @paas/web... && pnpm --filter @paas/web dev"
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages/shared:/app/packages/shared
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+    networks:
+      - paas-network
+      - traefik-public
+    depends_on:
+      - api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=Host(`localhost`)"
+      - "traefik.http.routers.web.entrypoints=web"
+      - "traefik.http.services.web.loadbalancer.server.port=3001"
