@@ -51,6 +51,16 @@ export class StorageService implements OnModuleInit {
     return this.client.presignedGetObject(this.buildsBucket, objectName, expiry);
   }
 
+  async removeObject(objectName: string): Promise<void> {
+    try {
+      await this.client.removeObject(this.buildsBucket, objectName);
+    } catch (err: any) {
+      if (err?.code !== 'NoSuchKey' && err?.code !== 'NotFound') {
+        throw err;
+      }
+    }
+  }
+
   private async ensureBucket(name: string): Promise<void> {
     const exists = await this.client.bucketExists(name);
     if (!exists) {

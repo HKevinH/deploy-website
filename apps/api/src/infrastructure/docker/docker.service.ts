@@ -173,10 +173,57 @@ export class DockerService implements OnModuleInit {
   async removeContainer(containerId: string, force = false): Promise<void> {
     try {
       const container = this.docker.getContainer(containerId);
-      await container.remove({ force, v: false });
+      await container.remove({ force, v: true });
     } catch (err: any) {
       if (err?.statusCode !== 404) throw err;
     }
+  }
+
+  async removeProjectContainers(projectId: string): Promise<{ containersRemoved: number; volumesRemoved: number }> {
+    const containers = await this.docker.listContainers({
+      all: true,
+      filters: { label: [`paas.project=${projectId}`] },
+    });
+
+    const attachedVolumeNames = new Set<string>();
+
+    for (const entry of containers) {
+      try {
+        const container = this.docker.getContainer(entry.Id);
+        const details = await container.inspect();
+
+        for (const mount of details.Mounts ?? []) {
+          if (mount.Type === 'volume' && mount.Name) {
+            attachedVolumeNames.add(mount.Name);
+          }
+        }
+
+        await container.remove({ force: true, v: true });
+      } catch (err: any) {
+        if (err?.statusCode !== 404) throw err;
+      }
+    }
+
+    const labeledVolumes = await this.listVolumesByLabel(`paas.project=${projectId}`);
+    for (const name of labeledVolumes) {
+      attachedVolumeNames.add(name);
+    }
+
+    let volumesRemoved = 0;
+    for (const volumeName of attachedVolumeNames) {
+      try {
+        const volume = this.docker.getVolume(volumeName);
+        await volume.remove({ force: true } as any);
+        volumesRemoved += 1;
+      } catch (err: any) {
+        if (err?.statusCode !== 404 && err?.statusCode !== 409) throw err;
+      }
+    }
+
+    return {
+      containersRemoved: containers.length,
+      volumesRemoved,
+    };
   }
 
   async restartContainer(containerId: string): Promise<void> {
@@ -379,6 +426,16 @@ export class DockerService implements OnModuleInit {
   }
 
   // ─── Private helpers ─────────────────────────────────────────────────────────
+
+  private async listVolumesByLabel(label: string): Promise<string[]> {
+    const result: any = await this.docker.listVolumes({
+      filters: { label: [label] } as any,
+    } as any);
+
+    return (result?.Volumes ?? [])
+      .map((volume: any) => volume?.Name)
+      .filter((name: string | undefined): name is string => Boolean(name));
+  }
 
   private buildTraefikLabels(options: CreateContainerOptions): Record<string, string> {
     const svc = options.containerName.replace(/[^a-zA-Z0-9-]/g, '-');
