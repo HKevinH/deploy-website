@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
+import { getApiErrorMessage } from '@/lib/api';
 import ThemeToggle from '@/components/dashboard/ThemeToggle';
 
 export default function LoginPage() {
@@ -23,8 +24,8 @@ export default function LoginPage() {
         await register(email, password);
       }
       router.push('/projects');
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Authentication failed');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Authentication failed'));
     } finally {
       setLoading(false);
     }

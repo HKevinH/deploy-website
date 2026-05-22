@@ -16,13 +16,30 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err: AxiosError) => {
-    if (err.response?.status === 401) {
+    const requestUrl = err.config?.url ?? '';
+    const isAuthRequest = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+    const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
+
+    if (err.response?.status === 401 && !isAuthRequest && !isLoginPage) {
       localStorage.removeItem('paas_token');
       window.location.href = '/login';
     }
     return Promise.reject(err);
   },
 );
+
+export function getApiErrorMessage(err: unknown, fallback = 'Something went wrong'): string {
+  if (axios.isAxiosError(err)) {
+    const payload = err.response?.data as { message?: unknown; error?: unknown } | undefined;
+    const message = payload?.message ?? payload?.error;
+
+    if (Array.isArray(message)) return message.join(', ');
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return fallback;
+}
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
 

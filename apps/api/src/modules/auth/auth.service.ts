@@ -19,10 +19,10 @@ export class AuthService {
 
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
     const user = await this.usersService.findByEmail(email);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) throw new UnauthorizedException('El usuario no existe');
 
     const valid = await this.usersService.validatePassword(user, password);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
+    if (!valid) throw new UnauthorizedException('Contraseña incorrecta');
 
     if (!user.isActive) throw new UnauthorizedException('Account is disabled');
 
