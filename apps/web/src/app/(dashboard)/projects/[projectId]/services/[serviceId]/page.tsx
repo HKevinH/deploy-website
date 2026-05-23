@@ -416,6 +416,7 @@ function LoadBalancerCard({
     const replicaNumber = index + 1;
     return routedReplicas.find((replica) => getReplicaNumber(replica.target) === replicaNumber) ?? routedReplicas[index] ?? null;
   });
+  const activeTargetCount = slots.filter(Boolean).length;
   const maxReplicaRequests = Math.max(...slots.map((replica) => replica?.requests ?? 0), 1);
 
   return (
@@ -435,7 +436,7 @@ function LoadBalancerCard({
           <LoadBalancerStat label={t('loadBalancerLimit')} value={maxRequests.toLocaleString()} />
           <LoadBalancerStat label={t('recentSample')} value={sampleSize.toLocaleString()} />
           <LoadBalancerStat label={t('routedRequests')} value={routedRequests.toLocaleString()} />
-          <LoadBalancerStat label={t('activeTargets')} value={`${routedReplicas.length}/${expectedReplicas}`} />
+          <LoadBalancerStat label={t('activeTargets')} value={`${activeTargetCount}/${expectedReplicas}`} />
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.35fr]">

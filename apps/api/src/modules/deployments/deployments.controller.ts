@@ -211,11 +211,12 @@ export class DeploymentsController {
 
     const routeName = `paas-${serviceId.replace(/[^a-zA-Z0-9-]/g, '-')}@file`;
     const metricsUrl = process.env.TRAEFIK_METRICS_URL ?? 'http://traefik:8082/metrics';
+    const activeContainerNames = this.splitContainerIds(deployment.containerName ?? '');
     let replicaTraffic: ReplicaTraffic[] = [];
 
     try {
-      const logs = await this.dockerService.getContainerLogs('paas-traefik', 1500);
-      replicaTraffic = this.parseTraefikReplicaTraffic(logs, routeName);
+      const logs = await this.dockerService.getContainerLogs('paas-traefik', 3000);
+      replicaTraffic = this.parseTraefikReplicaTraffic(logs, routeName, activeContainerNames);
     } catch {
       replicaTraffic = [];
     }
@@ -277,8 +278,15 @@ export class DeploymentsController {
     };
   }
 
-  private parseTraefikReplicaTraffic(logs: string, serviceName: string): ReplicaTraffic[] {
+  private parseTraefikReplicaTraffic(
+    logs: string,
+    serviceName: string,
+    activeContainerNames: string[],
+  ): ReplicaTraffic[] {
     const byTarget = new Map<string, ReplicaTraffic>();
+    const activeTargets = new Set(activeContainerNames);
+    const windowMs = Number(process.env.TRAEFIK_TRAFFIC_WINDOW_MS ?? 10_000);
+    const since = Date.now() - windowMs;
     let total = 0;
 
     for (const rawLine of logs.split('\n')) {
@@ -297,6 +305,12 @@ export class DeploymentsController {
       if (entryService !== serviceName && router !== serviceName) continue;
 
       const target = String(entry.ServiceAddr ?? entry.ServiceURL ?? 'unknown');
+      const targetContainer = target.replace(/^https?:\/\//, '').split(':')[0];
+      if (target !== 'unknown' && activeTargets.size > 0 && !activeTargets.has(targetContainer)) continue;
+
+      const startedAt = typeof entry.StartUTC === 'string' ? Date.parse(entry.StartUTC) : Number.NaN;
+      if (Number.isFinite(startedAt) && startedAt < since) continue;
+
       const status = String(entry.DownstreamStatus ?? entry.OriginStatus ?? 'unknown');
       const current = byTarget.get(target) ?? {
         target,
