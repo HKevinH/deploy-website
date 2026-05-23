@@ -98,7 +98,7 @@ export class LogsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       if (existing) existing();
 
       const cancel = await this.dockerService.streamContainerLogs(
-        deployment.containerId,
+        this.firstContainerId(deployment.containerId),
         (line, stream) => {
           client.emit('container:log', {
             deploymentId: data.deploymentId,
@@ -123,5 +123,9 @@ export class LogsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       cancel();
       this.logStreamCleanup.delete(client.id);
     }
+  }
+
+  private firstContainerId(containerIds: string): string {
+    return containerIds.split(',')[0].trim();
   }
 }

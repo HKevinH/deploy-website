@@ -1,14 +1,20 @@
 'use client';
 import useSWR from 'swr';
-import { Server, Box, Cpu, HardDrive } from 'lucide-react';
-import { systemApi, SystemStatus } from '@/lib/api';
+import { Server, Box, Cpu, HardDrive, Network, Shield, Timer, Workflow } from 'lucide-react';
+import { LoadBalancerConfig, systemApi, SystemStatus } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 
 const fetcher = () => systemApi.status().then((r) => r.data);
+const loadBalancerFetcher = () => systemApi.loadBalancer().then((r) => r.data);
 
 export default function SystemPage() {
   const { t } = useI18n();
   const { data, error } = useSWR<SystemStatus>('/system/status', fetcher, { refreshInterval: 5000 });
+  const { data: loadBalancer } = useSWR<LoadBalancerConfig>(
+    '/system/load-balancer',
+    loadBalancerFetcher,
+    { refreshInterval: 10000 },
+  );
 
   return (
     <div className="p-6 lg:p-8">
@@ -27,6 +33,41 @@ export default function SystemPage() {
             <Metric icon={Cpu} label="CPUs" value={String(data.docker.cpus)} />
             <Metric icon={HardDrive} label="Memory" value={`${Math.round(data.docker.memoryTotal / 1024 / 1024 / 1024)} GB`} />
           </div>
+
+          {loadBalancer && (
+            <div className="mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="font-semibold text-slate-950 dark:text-white">Global load balancer</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{loadBalancer.path}</p>
+                  </div>
+                  <span className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    {loadBalancer.enabled ? 'enabled' : 'missing'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-4">
+                <Metric icon={Workflow} label="Managed routes" value={String(loadBalancer.managedRoutes)} />
+                <Metric icon={Shield} label="Retry attempts" value={String(loadBalancer.retryAttempts)} />
+                <Metric icon={Network} label="Max in-flight" value={String(loadBalancer.maxInFlightRequests)} />
+                <Metric icon={Timer} label="Idle conns/host" value={String(loadBalancer.maxIdleConnsPerHost)} />
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 border-t border-slate-200 p-5 text-sm dark:border-slate-800 md:grid-cols-3">
+                <ConfigItem label="Retry interval" value={loadBalancer.retryInitialInterval} />
+                <ConfigItem label="Dial timeout" value={loadBalancer.dialTimeout} />
+                <ConfigItem label="Header timeout" value={loadBalancer.responseHeaderTimeout} />
+              </div>
+
+              <div className="border-t border-slate-200 p-5 dark:border-slate-800">
+                <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950 p-4 text-xs leading-5 text-slate-100">
+                  {loadBalancer.raw || 'load-balancer.yml not found'}
+                </pre>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
@@ -60,6 +101,15 @@ function Metric({ icon: Icon, label, value }: { icon: typeof Server; label: stri
         {label}
       </div>
       <div className="text-2xl font-bold text-slate-950 dark:text-white">{value}</div>
+    </div>
+  );
+}
+
+function ConfigItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+      <div className="mb-1 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="font-mono text-sm font-semibold text-slate-950 dark:text-white">{value}</div>
     </div>
   );
 }

@@ -24,6 +24,7 @@ export class ServicesService {
       dockerfilePath: dto.dockerfilePath ?? 'Dockerfile',
       dockerContext: dto.dockerContext ?? '.',
       port: dto.port ?? 3000,
+      replicas: dto.replicas ?? 1,
       autoDeploy: dto.autoDeploy ?? false,
     });
 

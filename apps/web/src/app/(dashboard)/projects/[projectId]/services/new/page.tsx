@@ -18,6 +18,7 @@ export default function NewServicePage() {
   const [gitBranch, setGitBranch] = useState('main');
   const [gitMode, setGitMode] = useState<'connected' | 'manual'>('connected');
   const [port, setPort] = useState(3000);
+  const [replicas, setReplicas] = useState(2);
   const [dockerfilePath, setDockerfilePath] = useState('Dockerfile');
   const [dockerContext, setDockerContext] = useState('.');
   const [gitConnectionId, setGitConnectionId] = useState('');
@@ -43,6 +44,7 @@ export default function NewServicePage() {
         gitBranch: gitBranch || 'main',
         gitProvider: gitMode === 'connected' && gitConnectionId === 'github' ? 'github' : undefined,
         port,
+        replicas,
         dockerfilePath: dockerfilePath || 'Dockerfile',
         dockerContext: dockerContext || '.',
         autoDeploy,
@@ -246,6 +248,17 @@ export default function NewServicePage() {
               type="number"
               min={1}
               max={65535}
+              className="input"
+            />
+          </Field>
+
+          <Field label="Replicas">
+            <input
+              value={replicas}
+              onChange={(e) => setReplicas(Number(e.target.value))}
+              type="number"
+              min={1}
+              max={10}
               className="input"
             />
           </Field>

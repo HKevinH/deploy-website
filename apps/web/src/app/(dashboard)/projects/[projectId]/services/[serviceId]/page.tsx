@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Activity, ChevronRight, Cpu, HardDrive, Play, RefreshCw, RotateCcw, Save, Square, Terminal } from 'lucide-react';
+import { Activity, ChevronRight, Cpu, HardDrive, Network, Play, RefreshCw, RotateCcw, Save, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { clsx } from 'clsx';
 import { servicesApi, deploymentsApi, buildsApi, Service, Deployment } from '@/lib/api';
@@ -19,6 +19,7 @@ export default function ServiceDetailPage() {
   const { projectId, serviceId } = useParams<{ projectId: string; serviceId: string }>();
   const [view, setView] = useState<'deployments' | 'buildLogs' | 'terminal'>('deployments');
   const [portDraft, setPortDraft] = useState('');
+  const [replicasDraft, setReplicasDraft] = useState('');
   const [savingPort, setSavingPort] = useState(false);
   const [containerAction, setContainerAction] = useState<'start' | 'stop' | 'restart' | null>(null);
 
@@ -40,14 +41,22 @@ export default function ServiceDetailPage() {
     { refreshInterval: 10000 },
   );
 
+  const { data: traffic } = useSWR(
+    service?.activeDeploymentId ? `traffic:${service.activeDeploymentId}` : null,
+    () => deploymentsApi.traffic(serviceId, service!.activeDeploymentId!).then((r) => r.data),
+    { refreshInterval: 10000 },
+  );
+
   const activeDeployment = useMemo(
     () => deployments?.find((deployment) => deployment.id === service?.activeDeploymentId) ?? null,
     [deployments, service?.activeDeploymentId],
   );
 
   useEffect(() => {
-    if (service) setPortDraft(String(service.port));
-  }, [service?.port]);
+    if (!service) return;
+    setPortDraft(String(service.port));
+    setReplicasDraft(String(service.replicas ?? 1));
+  }, [service?.port, service?.replicas]);
 
   async function handleTriggerBuild() {
     try {
@@ -73,14 +82,19 @@ export default function ServiceDetailPage() {
 
   async function handleSavePort() {
     const nextPort = Number(portDraft);
+    const nextReplicas = Number(replicasDraft);
     if (!Number.isInteger(nextPort) || nextPort < 1 || nextPort > 65535) {
       toast.error(t('invalidPort'));
+      return;
+    }
+    if (!Number.isInteger(nextReplicas) || nextReplicas < 1 || nextReplicas > 10) {
+      toast.error('Replicas must be between 1 and 10');
       return;
     }
 
     try {
       setSavingPort(true);
-      await servicesApi.update(serviceId, { port: nextPort });
+      await servicesApi.update(serviceId, { port: nextPort, replicas: nextReplicas });
       toast.success(t('portUpdated'));
       mutateService();
     } catch {
@@ -152,6 +166,7 @@ export default function ServiceDetailPage() {
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
                 <span className="font-mono">{service.gitBranch}</span>
                 <span>{t('port')} {service.port}</span>
+                <span>{t('replicas')} {service.replicas ?? 1}</span>
                 {activeDeployment && <span>v{activeDeployment.version}</span>}
               </div>
               {service.domains?.[0] && (
@@ -182,12 +197,26 @@ export default function ServiceDetailPage() {
               />
               <button
                 onClick={handleSavePort}
-                disabled={savingPort || portDraft === String(service.port)}
+                disabled={savingPort || (portDraft === String(service.port) && replicasDraft === String(service.replicas ?? 1))}
                 className="inline-flex h-full w-10 items-center justify-center border-l border-slate-200 text-slate-500 transition-colors hover:bg-white hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white"
-                title={t('savePort')}
+                title={t('saveRuntime')}
               >
                 <Save className="h-4 w-4" />
               </button>
+            </div>
+            <div className="flex h-10 items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm transition-colors focus-within:border-brand-500 dark:border-slate-700 dark:bg-slate-950">
+              <label htmlFor="service-replicas" className="border-r border-slate-200 px-3 text-xs font-semibold uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                {t('replicas')}
+              </label>
+              <input
+                id="service-replicas"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={replicasDraft}
+                onChange={(e) => setReplicasDraft(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                className="h-full w-14 bg-transparent px-3 text-sm font-semibold text-slate-950 outline-none dark:text-white"
+              />
             </div>
             <button
               onClick={() => handleContainerAction('start')}
@@ -239,7 +268,12 @@ export default function ServiceDetailPage() {
           value={stats ? `${(stats.memoryUsage / 1024 / 1024).toFixed(0)} MB` : t('idle')}
           hint={stats ? `${(stats.memoryLimit / 1024 / 1024).toFixed(0)} ${t('mbLimit')}` : undefined}
         />
-        <MetricCard icon={Terminal} label={t('container')} value={service.activeDeploymentId ? t('ready') : t('waiting')} />
+        <MetricCard
+          icon={Network}
+          label={t('requests')}
+          value={traffic?.available ? traffic.requestsTotal.toFixed(0) : '0'}
+          hint={traffic?.available ? Object.entries(traffic.requestsByCode).map(([code, count]) => `${code}: ${count}`).join(' | ') : undefined}
+        />
       </div>
 
       <ObservabilityCard
@@ -319,7 +353,7 @@ function ObservabilityCard({
         />
         <ObservationItem
           label={t('container')}
-          value={hasStats ? t('liveMetrics') : t('waitingFirstDeployment')}
+          value={hasStats ? `${service.replicas ?? 1} ${t('replicas').toLowerCase()}` : t('waitingFirstDeployment')}
         />
       </div>
     </div>

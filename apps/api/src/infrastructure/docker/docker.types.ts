@@ -31,6 +31,7 @@ export interface CreateContainerOptions {
   memoryLimit?: number;  // bytes
   cpuLimit?: number;     // NanoCPUs (1 CPU = 1e9)
   networkName?: string;
+  enableTraefikLabels?: boolean;
 }
 
 export interface ContainerStats {

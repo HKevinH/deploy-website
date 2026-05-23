@@ -1,0 +1,18 @@
+http:
+  routers:
+    paas-31fcf630-ae75-4eb2-ba9b-e0c490f98094:
+      rule: "Host(`web-eecc-web-landing.localhost`)"
+      entryPoints:
+        - web
+      middlewares:
+        - paas-lb-chain@file
+      service: paas-31fcf630-ae75-4eb2-ba9b-e0c490f98094
+  services:
+    paas-31fcf630-ae75-4eb2-ba9b-e0c490f98094:
+      loadBalancer:
+        passHostHeader: true
+        serversTransport: paas-default-lb@file
+        responseForwarding:
+          flushInterval: 100ms
+        servers:
+          - url: "http://paas-6386ea43-31fcf630-v2:3000"

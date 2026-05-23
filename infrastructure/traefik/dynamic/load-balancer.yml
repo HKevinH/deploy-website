@@ -1,0 +1,24 @@
+http:
+  middlewares:
+    paas-lb-chain:
+      chain:
+        middlewares:
+          - paas-lb-retry
+          - paas-lb-inflight
+
+    paas-lb-retry:
+      retry:
+        attempts: 3
+        initialInterval: 100ms
+
+    paas-lb-inflight:
+      inFlightReq:
+        amount: 1000
+
+  serversTransports:
+    paas-default-lb:
+      maxIdleConnsPerHost: 200
+      forwardingTimeouts:
+        dialTimeout: 30s
+        responseHeaderTimeout: 30s
+        idleConnTimeout: 90s

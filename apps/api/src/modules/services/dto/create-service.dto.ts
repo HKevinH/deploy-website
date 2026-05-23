@@ -51,6 +51,13 @@ export class CreateServiceDto {
   @IsOptional()
   port?: number;
 
+  @ApiPropertyOptional({ example: 2 })
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  replicas?: number;
+
   @ApiPropertyOptional({ example: 512 })
   @IsInt()
   @Min(64)
@@ -91,6 +98,13 @@ export class UpdateServiceDto {
   @IsInt()
   @IsOptional()
   port?: number;
+
+  @ApiPropertyOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  replicas?: number;
 
   @ApiPropertyOptional()
   @IsInt()

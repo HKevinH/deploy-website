@@ -28,6 +28,8 @@ entryPoints:
       middlewares:
         - global-security-headers@file
         - global-compress@file
+  metrics:
+    address: ":8082"
 
 certificatesResolvers:
   letsencrypt:
@@ -45,3 +47,9 @@ providers:
   file:
     directory: /etc/traefik/dynamic
     watch: true
+
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addServicesLabels: true

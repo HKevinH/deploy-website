@@ -77,62 +77,81 @@ export class DeploymentsProcessor {
           service.name,
         );
 
-      const containerName = `paas-${service.projectId.slice(0, 8)}-${service.id.slice(0, 8)}-v${deployment.version}`;
+      const replicas = Math.min(Math.max(service.replicas ?? 1, 1), 10);
+      const baseContainerName = `paas-${service.projectId.slice(0, 8)}-${service.id.slice(0, 8)}-v${deployment.version}`;
+      const containerIds: string[] = [];
+      const containerNames: string[] = [];
 
-      log(`Starting container ${containerName}`);
+      log(`Starting ${replicas} container${replicas === 1 ? '' : 's'} for ${baseContainerName}`);
 
-      const containerId = await this.dockerService.createAndStartContainer({
-        containerName,
-        imageName: build.imageName!,
-        tag: build.imageTag!,
-        env: {
-          ...envVars,
-          PORT: String(service.port ?? 3000),
-          NODE_ENV: 'production',
-        },
-        port: service.port ?? 3000,
-        domain: primaryDomain.hostname,
-        healthCheck: service.healthCheckPath
-          ? { path: service.healthCheckPath, interval: 30, timeout: 5, retries: 3 }
-          : undefined,
-        memoryLimit: service.memoryLimitMb ? service.memoryLimitMb * 1024 * 1024 : undefined,
-        cpuLimit: service.cpuLimit ? Math.round(service.cpuLimit * 1e9) : undefined,
-        labels: {
-          'paas.project': service.projectId,
-          'paas.service': service.id,
-          'paas.deployment': deploymentId,
-          'paas.version': String(deployment.version),
-        },
-      });
+      for (let index = 1; index <= replicas; index += 1) {
+        const containerName = replicas === 1 ? baseContainerName : `${baseContainerName}-${index}`;
+        const containerId = await this.dockerService.createAndStartContainer({
+          containerName,
+          imageName: build.imageName!,
+          tag: build.imageTag!,
+          env: {
+            ...envVars,
+            PORT: String(service.port ?? 3000),
+            NODE_ENV: 'production',
+          },
+          port: service.port ?? 3000,
+          domain: primaryDomain.hostname,
+          healthCheck: service.healthCheckPath
+            ? { path: service.healthCheckPath, interval: 30, timeout: 5, retries: 3 }
+            : undefined,
+          memoryLimit: service.memoryLimitMb ? service.memoryLimitMb * 1024 * 1024 : undefined,
+          cpuLimit: service.cpuLimit ? Math.round(service.cpuLimit * 1e9) : undefined,
+          enableTraefikLabels: false,
+          labels: {
+            'paas.project': service.projectId,
+            'paas.service': service.id,
+            'paas.deployment': deploymentId,
+            'paas.version': String(deployment.version),
+            'paas.replica': String(index),
+          },
+        });
 
-      await this.deploymentsService.updateContainerInfo(deploymentId, containerId, containerName);
-      log(`Container started (${containerId.slice(0, 12)})`);
+        containerIds.push(containerId);
+        containerNames.push(containerName);
+        log(`Container ${index}/${replicas} started (${containerId.slice(0, 12)})`);
+      }
+
+      await this.deploymentsService.updateContainerInfo(
+        deploymentId,
+        containerIds.join(','),
+        containerNames.join(','),
+      );
+      await job.progress(50);
+
+      if (service.healthCheckPath) {
+        log(`Waiting for health check at ${service.healthCheckPath}`);
+        for (const containerId of containerIds) {
+          const healthy = await this.dockerService.waitForHealthy(containerId, 120_000);
+
+          if (!healthy) {
+            const health = await this.dockerService.inspectContainerHealth(containerId);
+            await Promise.all(containerIds.map((id) => this.dockerService.removeContainer(id, true)));
+            throw new Error(
+              health.lastOutput
+                ? `Health check failed: ${health.lastOutput}`
+                : 'Health check failed: container is unhealthy after 120s',
+            );
+          }
+        }
+
+        log('Containers are healthy');
+      }
+
       await this.writeTraefikRoute({
         domain: primaryDomain.hostname,
-        containerName,
+        containerNames,
         port: service.port ?? 3000,
         serviceId: service.id,
         tls: primaryDomain.sslEnabled,
       });
-      log(`Route configured at ${primaryDomain.sslEnabled ? 'https' : 'http'}://${primaryDomain.hostname}`);
+      log(`Load balancer configured at ${primaryDomain.sslEnabled ? 'https' : 'http'}://${primaryDomain.hostname}`);
       await job.progress(60);
-
-      if (service.healthCheckPath) {
-        log(`Waiting for health check at ${service.healthCheckPath}`);
-        const healthy = await this.dockerService.waitForHealthy(containerId, 120_000);
-
-        if (!healthy) {
-          const health = await this.dockerService.inspectContainerHealth(containerId);
-          await this.dockerService.removeContainer(containerId, true);
-          throw new Error(
-            health.lastOutput
-              ? `Health check failed: ${health.lastOutput}`
-              : 'Health check failed: container is unhealthy after 120s',
-          );
-        }
-
-        log('Container is healthy');
-      }
 
       await job.progress(80);
 
@@ -140,8 +159,10 @@ export class DeploymentsProcessor {
       if (previous?.containerId && previous.id !== deploymentId) {
         log(`Stopping previous deployment v${previous.version}`);
         try {
-          await this.dockerService.stopContainer(previous.containerId);
-          await this.dockerService.removeContainer(previous.containerId);
+          for (const previousContainerId of this.splitContainerIds(previous.containerId)) {
+            await this.dockerService.stopContainer(previousContainerId);
+            await this.dockerService.removeContainer(previousContainerId);
+          }
         } catch (err) {
           this.logger.warn(`Could not remove old container ${previous.containerId}: ${err}`);
         }
@@ -151,7 +172,12 @@ export class DeploymentsProcessor {
 
       const duration = Math.round((Date.now() - startTime) / 1000);
 
-      await this.deploymentsService.markSuccess(deploymentId, containerId, containerName, duration);
+      await this.deploymentsService.markSuccess(
+        deploymentId,
+        containerIds.join(','),
+        containerNames.join(','),
+        duration,
+      );
       await this.servicesService.updateActiveDeployment(service.id, deploymentId);
       await this.servicesService.updateStatus(service.id, ServiceStatus.RUNNING);
 
@@ -175,7 +201,7 @@ export class DeploymentsProcessor {
 
   private async writeTraefikRoute(options: {
     domain: string;
-    containerName: string;
+    containerNames: string[];
     port: number;
     serviceId: string;
     tls: boolean;
@@ -187,6 +213,9 @@ export class DeploymentsProcessor {
     const tlsBlock = options.tls
       ? `      tls:\n        certResolver: letsencrypt\n`
       : '';
+    const servers = options.containerNames
+      .map((containerName) => `          - url: "http://${containerName}:${options.port}"`)
+      .join('\n');
 
     const config = `http:
   routers:
@@ -194,15 +223,28 @@ export class DeploymentsProcessor {
       rule: "Host(\`${options.domain}\`)"
       entryPoints:
         - ${entryPoint}
+      middlewares:
+        - paas-lb-chain@file
       service: ${routeName}
 ${tlsBlock}  services:
     ${routeName}:
       loadBalancer:
+        passHostHeader: true
+        serversTransport: paas-default-lb@file
+        responseForwarding:
+          flushInterval: 100ms
         servers:
-          - url: "http://${options.containerName}:${options.port}"
+${servers}
 `;
 
     await fs.mkdir(dynamicDir, { recursive: true });
     await fs.writeFile(filePath, config, 'utf8');
+  }
+
+  private splitContainerIds(containerIds: string): string[] {
+    return containerIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
   }
 }

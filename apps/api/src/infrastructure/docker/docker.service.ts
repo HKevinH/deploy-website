@@ -112,7 +112,7 @@ export class DockerService implements OnModuleInit {
       Image: `${options.imageName}:${options.tag}`,
       Env: envArray,
       Labels: {
-        ...this.buildTraefikLabels(options),
+        ...(options.enableTraefikLabels === false ? {} : this.buildTraefikLabels(options)),
         ...options.labels,
         'paas.managed': 'true',
       },

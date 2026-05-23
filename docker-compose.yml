@@ -25,6 +25,7 @@ services:
       - "80:80"
       - "443:443"
       - "8080:8080" # Dashboard (dev only)
+      - "8082:8082" # Prometheus metrics (dev only)
     volumes:
       - ./infrastructure/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./infrastructure/traefik/dynamic:/etc/traefik/dynamic:ro
