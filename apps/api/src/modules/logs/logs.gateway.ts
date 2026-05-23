@@ -100,7 +100,12 @@ export class LogsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const cancel = await this.dockerService.streamContainerLogs(
         deployment.containerId,
         (line, stream) => {
-          client.emit('container:log', { line, stream, timestamp: new Date().toISOString() });
+          client.emit('container:log', {
+            deploymentId: data.deploymentId,
+            line,
+            stream,
+            timestamp: new Date().toISOString(),
+          });
         },
         { tail: data.tail ?? 100, follow: true },
       );

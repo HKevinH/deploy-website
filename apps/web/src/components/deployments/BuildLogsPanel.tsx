@@ -59,10 +59,10 @@ export default function BuildLogsPanel({ serviceId }: Props) {
           .split('\n')
           .filter(Boolean)
           .map(parseStoredLine);
-        setLines(parsed);
+        setLines((prev) => mergeLogLines(parsed, prev));
       })
       .catch(() => {
-        if (!cancelled) setLines([]);
+        if (!cancelled) setLines((prev) => prev);
       })
       .finally(() => {
         if (!cancelled) setLoadingLogs(false);
@@ -209,6 +209,20 @@ function parseStoredLine(raw: string): LogLine {
   const match = raw.match(/^\[([^\]]+)\]\s?(.*)$/);
   if (!match) return { timestamp: new Date().toISOString(), line: raw };
   return { timestamp: match[1], line: match[2] };
+}
+
+function mergeLogLines(...groups: LogLine[][]): LogLine[] {
+  const seen = new Set<string>();
+  const merged: LogLine[] = [];
+
+  for (const entry of groups.flat()) {
+    const key = `${entry.timestamp}:${entry.line}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(entry);
+  }
+
+  return merged.slice(-800);
 }
 
 function formatTime(timestamp: string): string {
