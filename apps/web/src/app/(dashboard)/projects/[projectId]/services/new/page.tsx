@@ -6,11 +6,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { ChevronRight, GitBranch, Loader2, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authApi, GitConnection, GithubRepository, RepoDetection, servicesApi } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 const gitConnectionsFetcher = () => authApi.gitConnections().then((r) => r.data);
 const githubRepositoriesFetcher = () => authApi.githubRepositories().then((r) => r.data);
 
 export default function NewServicePage() {
+  const { t } = useI18n();
   const router = useRouter();
   const { projectId } = useParams<{ projectId: string }>();
   const [name, setName] = useState('');
@@ -50,10 +52,10 @@ export default function NewServicePage() {
         autoDeploy,
       });
 
-      toast.success('Service created');
+      toast.success(t('serviceCreated'));
       router.push(`/projects/${projectId}/services/${data.id}`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Failed to create service');
+      toast.error(err?.response?.data?.message ?? t('failedCreateService'));
     } finally {
       setCreating(false);
     }
@@ -62,17 +64,17 @@ export default function NewServicePage() {
   return (
     <div className="p-6 lg:p-8">
       <div className="mb-6 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <Link href="/projects" className="hover:text-slate-950 dark:hover:text-white">Projects</Link>
+        <Link href="/projects" className="hover:text-slate-950 dark:hover:text-white">{t('projects')}</Link>
         <ChevronRight className="h-4 w-4" />
-        <Link href={`/projects/${projectId}`} className="hover:text-slate-950 dark:hover:text-white">Project</Link>
+        <Link href={`/projects/${projectId}`} className="hover:text-slate-950 dark:hover:text-white">{t('project')}</Link>
         <ChevronRight className="h-4 w-4" />
-        <span className="text-slate-950 dark:text-white">New service</span>
+        <span className="text-slate-950 dark:text-white">{t('newService')}</span>
       </div>
 
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-950 dark:text-white">Add Service</h1>
+        <h1 className="text-2xl font-bold text-slate-950 dark:text-white">{t('addService')}</h1>
         <p className="mt-1 text-slate-500 dark:text-slate-400">
-          Connect a repository and define the runtime defaults.
+          {t('connectRepositoryDefaults')}
         </p>
       </div>
 
@@ -81,7 +83,7 @@ export default function NewServicePage() {
         className="max-w-3xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
       >
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <Field label="Service name">
+          <Field label={t('serviceName')}>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -92,7 +94,7 @@ export default function NewServicePage() {
             />
           </Field>
 
-          <Field label="Branch">
+          <Field label={t('branch')}>
             <div className="relative">
               <GitBranch className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input
@@ -105,12 +107,12 @@ export default function NewServicePage() {
           </Field>
 
           <div className="md:col-span-2">
-            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Git source</span>
+            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('gitSource')}</span>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <SourceOption
                 checked={gitMode === 'connected'}
-                title="Connected account"
-                description="Pick a GitHub account and repository."
+                title={t('connectedAccount')}
+                description={t('connectedAccountDescription')}
                 onChange={() => {
                   setGitMode('connected');
                   setGitUrl('');
@@ -118,8 +120,8 @@ export default function NewServicePage() {
               />
               <SourceOption
                 checked={gitMode === 'manual'}
-                title="Manual URL"
-                description="Paste a public or accessible Git URL."
+                title={t('manualUrl')}
+                description={t('manualUrlDescription')}
                 onChange={() => {
                   setGitMode('manual');
                   setGitConnectionId('');
@@ -130,7 +132,7 @@ export default function NewServicePage() {
           </div>
 
           {gitMode === 'connected' ? (
-            <Field label="Git account" className="md:col-span-2">
+            <Field label={t('gitAccount')} className="md:col-span-2">
               <select
                 value={gitConnectionId}
                 onChange={(e) => {
@@ -140,7 +142,7 @@ export default function NewServicePage() {
                 }}
                 className="input"
               >
-                <option value="">Select connected account</option>
+                <option value="">{t('selectConnectedAccount')}</option>
                 {gitConnections?.map((connection) => (
                   <option key={connection.id} value={connection.id}>
                     {connection.provider} - {connection.username}
@@ -149,12 +151,12 @@ export default function NewServicePage() {
               </select>
               {gitConnections?.length === 0 && (
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Connect GitHub first in <Link href="/git" className="font-medium text-brand-600 dark:text-brand-400">Git settings</Link>.
+                  {t('connectGithubFirst')} <Link href="/git" className="font-medium text-brand-600 dark:text-brand-400">{t('gitSettings')}</Link>.
                 </p>
               )}
             </Field>
           ) : (
-            <Field label="Git URL" className="md:col-span-2">
+            <Field label={t('gitUrl')} className="md:col-span-2">
               <input
                 value={gitUrl}
                 onChange={(e) => setGitUrl(e.target.value)}
@@ -166,7 +168,7 @@ export default function NewServicePage() {
           )}
 
           {gitMode === 'connected' && gitConnectionId === 'github' && (
-            <Field label="Repository" className="md:col-span-2">
+            <Field label={t('repository')} className="md:col-span-2">
               <select
                 value={selectedRepo}
                 onChange={(e) => {
@@ -188,14 +190,14 @@ export default function NewServicePage() {
                       setDockerContext(data.dockerContext);
                       setPort(data.port);
                     })
-                    .catch(() => toast.error('Could not detect build settings'))
+                    .catch(() => toast.error(t('detectBuildSettingsError')))
                     .finally(() => setDetecting(false));
                 }}
                 className="input"
                 disabled={loadingRepos}
                 required
               >
-                <option value="">{loadingRepos ? 'Loading repositories...' : 'Select repository'}</option>
+                <option value="">{loadingRepos ? t('loadingRepositories') : t('selectRepository')}</option>
                 {githubRepositories?.map((repo) => (
                   <option key={repo.id} value={repo.id}>
                     {repo.fullName}{repo.private ? ' (private)' : ''}
@@ -204,7 +206,7 @@ export default function NewServicePage() {
               </select>
               {githubRepositories?.length === 0 && (
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  No repositories were returned by GitHub. Check the app permissions.
+                  {t('noRepositories')}
                 </p>
               )}
             </Field>
@@ -213,7 +215,7 @@ export default function NewServicePage() {
           {(detecting || detection) && (
             <div className="md:col-span-2 rounded-lg border border-brand-500/20 bg-brand-50 p-4 dark:border-brand-700/40 dark:bg-brand-950/25">
               <div className="text-sm font-semibold text-brand-800 dark:text-brand-100">
-                {detecting ? 'Detecting build preset...' : detection?.label}
+                {detecting ? t('detectingBuildPreset') : detection?.label}
               </div>
               {detection && (
                 <div className="mt-2 text-xs text-brand-800/80 dark:text-brand-100/75">
@@ -223,7 +225,7 @@ export default function NewServicePage() {
             </div>
           )}
 
-          <Field label="Dockerfile path">
+          <Field label={t('dockerfilePath')}>
             <input
               value={dockerfilePath}
               onChange={(e) => setDockerfilePath(e.target.value)}
@@ -232,7 +234,7 @@ export default function NewServicePage() {
             />
           </Field>
 
-          <Field label="Docker context">
+          <Field label={t('dockerContext')}>
             <input
               value={dockerContext}
               onChange={(e) => setDockerContext(e.target.value)}
@@ -241,7 +243,7 @@ export default function NewServicePage() {
             />
           </Field>
 
-          <Field label="Container port">
+          <Field label={t('containerPort')}>
             <input
               value={port}
               onChange={(e) => setPort(Number(e.target.value))}
@@ -252,7 +254,7 @@ export default function NewServicePage() {
             />
           </Field>
 
-          <Field label="Replicas">
+          <Field label={t('replicas')}>
             <input
               value={replicas}
               onChange={(e) => setReplicas(Number(e.target.value))}
@@ -266,9 +268,9 @@ export default function NewServicePage() {
 
         <label className="mt-5 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
           <div>
-            <div className="text-sm font-medium text-slate-900 dark:text-white">Auto deploy</div>
+            <div className="text-sm font-medium text-slate-900 dark:text-white">{t('autoDeploy')}</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">
-              Deploy automatically after a successful build.
+              {t('autoDeployDescription')}
             </div>
           </div>
           <input
@@ -284,7 +286,7 @@ export default function NewServicePage() {
             href={`/projects/${projectId}`}
             className="rounded-lg px-4 py-2 text-sm text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white"
           >
-            Cancel
+            {t('cancel')}
           </Link>
           <button
             type="submit"
@@ -292,7 +294,7 @@ export default function NewServicePage() {
             className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Create service
+            {t('createService')}
           </button>
         </div>
       </form>

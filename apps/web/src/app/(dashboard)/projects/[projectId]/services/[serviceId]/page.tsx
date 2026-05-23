@@ -88,7 +88,7 @@ export default function ServiceDetailPage() {
       return;
     }
     if (!Number.isInteger(nextReplicas) || nextReplicas < 1 || nextReplicas > 10) {
-      toast.error('Replicas must be between 1 and 10');
+      toast.error(t('invalidReplicas'));
       return;
     }
 

@@ -6,10 +6,12 @@ import { Activity, ChevronRight, GitBranch, Globe, Plus, Trash2 } from 'lucide-r
 import toast from 'react-hot-toast';
 import { projectsApi, Project } from '@/lib/api';
 import StatusBadge from '@/components/deployments/DeploymentStatus';
+import { useI18n } from '@/lib/i18n';
 
 const fetcher = (id: string) => projectsApi.get(id).then((r) => r.data);
 
 export default function ProjectDetailPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const { projectId } = useParams<{ projectId: string }>();
   const { data: project, error } = useSWR<Project>(
@@ -20,18 +22,18 @@ export default function ProjectDetailPage() {
 
   async function handleDelete() {
     if (!project) return;
-    if (!confirm(`Delete project "${project.name}" and all its services?`)) return;
+    if (!confirm(t('deleteProjectConfirm').replace('{name}', project.name))) return;
 
     try {
       await projectsApi.delete(project.id);
-      toast.success('Project deleted');
+      toast.success(t('projectDeleted'));
       router.replace('/projects');
     } catch {
-      toast.error('Failed to delete project');
+      toast.error(t('failedDeleteProject'));
     }
   }
 
-  if (error) return <div className="p-8 text-rose-600 dark:text-rose-300">Failed to load project</div>;
+  if (error) return <div className="p-8 text-rose-600 dark:text-rose-300">{t('failedLoadProject')}</div>;
 
   if (!project) return (
     <div className="p-8 animate-pulse">
@@ -43,7 +45,7 @@ export default function ProjectDetailPage() {
   return (
     <div className="p-6 lg:p-8">
       <div className="mb-6 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <Link href="/projects" className="transition-colors hover:text-slate-950 dark:hover:text-white">Projects</Link>
+        <Link href="/projects" className="transition-colors hover:text-slate-950 dark:hover:text-white">{t('projects')}</Link>
         <ChevronRight className="h-4 w-4" />
         <span className="text-slate-950 dark:text-white">{project.name}</span>
       </div>
@@ -59,21 +61,21 @@ export default function ProjectDetailPage() {
             className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
           >
             <Trash2 className="h-4 w-4" />
-            Delete
+            {t('delete')}
           </button>
           <Link
             href={`/projects/${projectId}/services/new`}
             className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
           >
             <Plus className="h-4 w-4" />
-            Add Service
+            {t('addService')}
           </Link>
         </div>
       </div>
 
       {project.services.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-slate-500 dark:text-slate-400">No services yet. Add your first service to get started.</p>
+          <p className="text-slate-500 dark:text-slate-400">{t('noServices')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
