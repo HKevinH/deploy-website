@@ -81,9 +81,9 @@ flowchart LR
 
   Domain --> Traefik[Traefik Load Balancer]
 
-  Traefik --> R1[Replica 1<br/>container-v2-1:3000]
-  Traefik --> R2[Replica 2<br/>container-v2-2:3000]
-  Traefik --> R3[Replica 3<br/>container-v2-3:3000]
+  Traefik --> R1["Replica 1<br/>container-v2-1 port 3000"]
+  Traefik --> R2["Replica 2<br/>container-v2-2 port 3000"]
+  Traefik --> R3["Replica 3<br/>container-v2-3 port 3000"]
 ```
 
 The user only knows the domain. Traefik knows the internal replicas and distributes requests across them.
@@ -92,13 +92,13 @@ The user only knows the domain. Traefik knows the internal replicas and distribu
 
 ```mermaid
 flowchart TB
-  LB[load-balancer.yml] --> Chain[paas-lb-chain]
-  Chain --> Retry[paas-lb-retry<br/>attempts: 3]
-  Chain --> InFlight[paas-lb-inflight<br/>amount: 1000]
-  LB --> Transport[paas-default-lb<br/>timeouts + idle connections]
+  LB["load-balancer.yml"] --> Chain["paas-lb-chain"]
+  Chain --> Retry["paas-lb-retry<br/>attempts 3"]
+  Chain --> InFlight["paas-lb-inflight<br/>amount 1000"]
+  LB --> Transport["paas-default-lb<br/>timeouts and idle connections"]
 
-  Route[Dynamic service file<br/>paas-service.yml] --> ChainRef[middlewares:<br/>paas-lb-chain@file]
-  Route --> TransportRef[serversTransport:<br/>paas-default-lb@file]
+  Route["Dynamic service file<br/>paas-service.yml"] --> ChainRef["global middleware<br/>paas-lb-chain"]
+  Route --> TransportRef["global transport<br/>paas-default-lb"]
   ChainRef --> Chain
   TransportRef --> Transport
 ```
@@ -124,7 +124,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  Traefik[Traefik] --> Metrics[/Prometheus metrics<br/>:8082/metrics/]
+  Traefik[Traefik] --> Metrics["Prometheus metrics<br/>port 8082 metrics"]
   Traefik --> AccessLogs[Access logs]
   Docker[Docker Engine] --> Stats[CPU / Memory<br/>per container]
   API[API] --> Metrics
