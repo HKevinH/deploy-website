@@ -4,6 +4,8 @@ Esta carpeta explica como funciona la plataforma, con foco en el flujo completo 
 
 Version en ingles: [README.en.md](./README.en.md)
 
+Diagramas: [DIAGRAMAS.md](./DIAGRAMAS.md)
+
 ## Resumen
 
 La plataforma funciona como un mini PaaS autoalojado. Permite registrar proyectos, conectar repositorios Git, construir imagenes Docker, desplegar contenedores y publicar servicios usando Traefik como proxy inverso y balanceador de cargas.

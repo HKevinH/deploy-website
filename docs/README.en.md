@@ -4,6 +4,8 @@ This folder explains how the platform works, focusing on the complete deployment
 
 Spanish version: [README.md](./README.md)
 
+Diagrams: [DIAGRAMS.en.md](./DIAGRAMS.en.md)
+
 ## Overview
 
 The platform works as a small self-hosted PaaS. It lets users register projects, connect Git repositories, build Docker images, deploy containers, and publish services through Traefik as a reverse proxy and load balancer.
