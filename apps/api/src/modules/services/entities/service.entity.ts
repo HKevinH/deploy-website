@@ -66,6 +66,9 @@ export class Service {
   @Column({ type: 'int', default: 1 })
   replicas: number;
 
+  @Column({ type: 'int', default: 1000, name: 'lb_max_in_flight' })
+  lbMaxInFlight: number;
+
   @Column({ type: 'int', nullable: true, name: 'memory_limit_mb' })
   memoryLimitMb: number | null;
 

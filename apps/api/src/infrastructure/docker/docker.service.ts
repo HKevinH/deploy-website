@@ -331,6 +331,29 @@ export class DockerService implements OnModuleInit {
     return () => logStream.destroy();
   }
 
+  async getContainerLogs(containerIdOrName: string, tail = 1000): Promise<string> {
+    const container = this.docker.getContainer(containerIdOrName);
+    const logResult = await container.logs({
+      stdout: true,
+      stderr: true,
+      follow: false,
+      tail,
+      timestamps: false,
+    });
+    if (Buffer.isBuffer(logResult)) return logResult.toString('utf8');
+
+    const logStream = logResult as unknown as NodeJS.ReadableStream;
+    const chunks: Buffer[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      logStream.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+      logStream.on('end', resolve);
+      logStream.on('error', reject);
+    });
+
+    return Buffer.concat(chunks).toString('utf8');
+  }
+
   // ─── Health & Readiness ──────────────────────────────────────────────────────
 
   async waitForHealthy(containerId: string, timeoutMs = 120_000): Promise<boolean> {

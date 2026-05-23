@@ -25,6 +25,7 @@ export class ServicesService {
       dockerContext: dto.dockerContext ?? '.',
       port: dto.port ?? 3000,
       replicas: dto.replicas ?? 1,
+      lbMaxInFlight: dto.lbMaxInFlight ?? 1000,
       autoDeploy: dto.autoDeploy ?? false,
     });
 

@@ -149,6 +149,7 @@ export class DeploymentsProcessor {
         port: service.port ?? 3000,
         serviceId: service.id,
         tls: primaryDomain.sslEnabled,
+        lbMaxInFlight: service.lbMaxInFlight ?? 1000,
       });
       log(`Load balancer configured at ${primaryDomain.sslEnabled ? 'https' : 'http'}://${primaryDomain.hostname}`);
       await job.progress(60);
@@ -205,6 +206,7 @@ export class DeploymentsProcessor {
     port: number;
     serviceId: string;
     tls: boolean;
+    lbMaxInFlight: number;
   }): Promise<void> {
     const dynamicDir = this.config.get<string>('TRAEFIK_DYNAMIC_DIR', '/app/traefik-dynamic');
     const routeName = `paas-${options.serviceId.replace(/[^a-zA-Z0-9-]/g, '-')}`;
@@ -218,6 +220,10 @@ export class DeploymentsProcessor {
       .join('\n');
 
     const config = `http:
+  middlewares:
+    ${routeName}-inflight:
+      inFlightReq:
+        amount: ${Math.min(Math.max(options.lbMaxInFlight, 1), 100000)}
   routers:
     ${routeName}:
       rule: "Host(\`${options.domain}\`)"
@@ -225,6 +231,7 @@ export class DeploymentsProcessor {
         - ${entryPoint}
       middlewares:
         - paas-lb-chain@file
+        - ${routeName}-inflight
       service: ${routeName}
 ${tlsBlock}  services:
     ${routeName}:

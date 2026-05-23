@@ -21,6 +21,7 @@ export default function NewServicePage() {
   const [gitMode, setGitMode] = useState<'connected' | 'manual'>('connected');
   const [port, setPort] = useState(3000);
   const [replicas, setReplicas] = useState(2);
+  const [lbMaxInFlight, setLbMaxInFlight] = useState(1000);
   const [dockerfilePath, setDockerfilePath] = useState('Dockerfile');
   const [dockerContext, setDockerContext] = useState('.');
   const [gitConnectionId, setGitConnectionId] = useState('');
@@ -47,6 +48,7 @@ export default function NewServicePage() {
         gitProvider: gitMode === 'connected' && gitConnectionId === 'github' ? 'github' : undefined,
         port,
         replicas,
+        lbMaxInFlight,
         dockerfilePath: dockerfilePath || 'Dockerfile',
         dockerContext: dockerContext || '.',
         autoDeploy,
@@ -261,6 +263,17 @@ export default function NewServicePage() {
               type="number"
               min={1}
               max={10}
+              className="input"
+            />
+          </Field>
+
+          <Field label={t('lbMaxInFlight')}>
+            <input
+              value={lbMaxInFlight}
+              onChange={(e) => setLbMaxInFlight(Number(e.target.value))}
+              type="number"
+              min={1}
+              max={100000}
               className="input"
             />
           </Field>

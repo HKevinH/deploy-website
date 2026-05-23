@@ -1,4 +1,8 @@
 http:
+  middlewares:
+    paas-cf32693b-62b5-4e6f-b1e2-1a1057112190-inflight:
+      inFlightReq:
+        amount: 2
   routers:
     paas-cf32693b-62b5-4e6f-b1e2-1a1057112190:
       rule: "Host(`web-web-landing.localhost`)"
@@ -6,6 +10,7 @@ http:
         - web
       middlewares:
         - paas-lb-chain@file
+        - paas-cf32693b-62b5-4e6f-b1e2-1a1057112190-inflight
       service: paas-cf32693b-62b5-4e6f-b1e2-1a1057112190
   services:
     paas-cf32693b-62b5-4e6f-b1e2-1a1057112190:
@@ -15,5 +20,5 @@ http:
         responseForwarding:
           flushInterval: 100ms
         servers:
-          - url: "http://paas-6386ea43-cf32693b-v2-1:3000"
-          - url: "http://paas-6386ea43-cf32693b-v2-2:3000"
+          - url: "http://paas-6386ea43-cf32693b-v4-1:3000"
+          - url: "http://paas-6386ea43-cf32693b-v4-2:3000"

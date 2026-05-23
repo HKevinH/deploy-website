@@ -143,17 +143,18 @@ export interface GitConnection { id: string; provider: 'github'; username: strin
 export interface GithubRepository { id: number; fullName: string; cloneUrl: string; private: boolean; defaultBranch: string; updatedAt: string; }
 export interface RepoDetection { type: string; label: string; dockerfilePath: string; dockerContext: string; port: number; notes: string[]; }
 export interface Project { id: string; name: string; slug: string; description: string | null; services: Service[]; createdAt: string; }
-export interface Service { id: string; name: string; status: string; gitUrl: string | null; gitBranch: string; gitProvider?: string | null; port: number; replicas: number; autoDeploy?: boolean; activeDeploymentId: string | null; activeDeployment: Deployment | null; domains: Domain[]; createdAt: string; }
+export interface Service { id: string; name: string; status: string; gitUrl: string | null; gitBranch: string; gitProvider?: string | null; port: number; replicas: number; lbMaxInFlight: number; autoDeploy?: boolean; activeDeploymentId: string | null; activeDeployment: Deployment | null; domains: Domain[]; createdAt: string; }
 export interface Build { id: string; status: string; commitSha: string; commitMessage: string | null; commitAuthor: string | null; branch: string | null; imageName: string | null; imageTag: string | null; logPath?: string | null; errorMessage?: string | null; durationSeconds: number | null; createdAt: string; }
 export interface Deployment { id: string; version: number; status: string; containerId: string | null; containerName: string | null; build: Build; durationSeconds: number | null; createdAt: string; }
 export interface Domain { id: string; hostname: string; isCustom: boolean; status: string; sslEnabled: boolean; }
 export interface EnvVarKey { id: string; key: string; isSecret: boolean; }
 export interface ContainerStats { cpuPercent: number; memoryUsage: number; memoryLimit: number; memoryPercent: number; replicas?: number; }
-export interface TrafficStats { requestsTotal: number; requestsByCode: Record<string, number>; service: string; available: boolean; }
+export interface TrafficReplica { target: string; requests: number; percent: number; statusCodes: Record<string, number>; lastPath?: string; lastSeen?: string; }
+export interface TrafficStats { requestsTotal: number; requestsByCode: Record<string, number>; service: string; available: boolean; lbMaxInFlight: number; sampleSize: number; replicaRequests: TrafficReplica[]; }
 export interface LoadBalancerConfig { enabled: boolean; path: string; retryAttempts: number; retryInitialInterval: string; maxInFlightRequests: number; maxIdleConnsPerHost: number; dialTimeout: string; responseHeaderTimeout: string; idleConnTimeout: string; managedRoutes: number; raw: string; }
 export interface ExecResult { stdout: string; stderr: string; exitCode: number | null; }
 export interface CreateProjectInput { name: string; slug?: string; description?: string; }
-export interface CreateServiceInput { name: string; gitUrl?: string; gitBranch?: string; gitProvider?: string; port?: number; replicas?: number; dockerfilePath?: string; dockerContext?: string; autoDeploy?: boolean; }
+export interface CreateServiceInput { name: string; gitUrl?: string; gitBranch?: string; gitProvider?: string; port?: number; replicas?: number; lbMaxInFlight?: number; dockerfilePath?: string; dockerContext?: string; autoDeploy?: boolean; }
 export interface EnvVarInput { key: string; value: string; isSecret?: boolean; }
 export interface UpdateProfileInput { name?: string; avatarUrl?: string; }
 export interface SystemContainer { id: string; name: string; status: string; image: string; created: number; labels: Record<string, string>; }

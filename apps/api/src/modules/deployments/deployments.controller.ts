@@ -204,23 +204,39 @@ export class DeploymentsController {
     @Param('serviceId', ParseUUIDPipe) serviceId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await this.servicesService.findOne(serviceId, user.id);
+    const service = await this.servicesService.findOne(serviceId, user.id);
     const deployment = await this.deploymentsService.findById(id);
 
     if (deployment.serviceId !== serviceId) throw new BadRequestException('Deployment does not belong to service');
 
     const routeName = `paas-${serviceId.replace(/[^a-zA-Z0-9-]/g, '-')}@file`;
     const metricsUrl = process.env.TRAEFIK_METRICS_URL ?? 'http://traefik:8082/metrics';
+    let replicaTraffic: ReplicaTraffic[] = [];
+
+    try {
+      const logs = await this.dockerService.getContainerLogs('paas-traefik', 1500);
+      replicaTraffic = this.parseTraefikReplicaTraffic(logs, routeName);
+    } catch {
+      replicaTraffic = [];
+    }
 
     try {
       const { data } = await axios.get<string>(metricsUrl, { timeout: 2000 });
-      return this.parseTraefikTraffic(data, routeName);
+      return {
+        ...this.parseTraefikTraffic(data, routeName),
+        lbMaxInFlight: service.lbMaxInFlight ?? 1000,
+        sampleSize: replicaTraffic.reduce((sum, item) => sum + item.requests, 0),
+        replicaRequests: replicaTraffic,
+      };
     } catch {
       return {
         requestsTotal: 0,
         requestsByCode: {},
         service: routeName,
         available: false,
+        lbMaxInFlight: service.lbMaxInFlight ?? 1000,
+        sampleSize: replicaTraffic.reduce((sum, item) => sum + item.requests, 0),
+        replicaRequests: replicaTraffic,
       };
     }
   }
@@ -260,4 +276,57 @@ export class DeploymentsController {
       available: true,
     };
   }
+
+  private parseTraefikReplicaTraffic(logs: string, serviceName: string): ReplicaTraffic[] {
+    const byTarget = new Map<string, ReplicaTraffic>();
+    let total = 0;
+
+    for (const rawLine of logs.split('\n')) {
+      const jsonStart = rawLine.indexOf('{');
+      if (jsonStart < 0) continue;
+
+      let entry: Record<string, any>;
+      try {
+        entry = JSON.parse(rawLine.slice(jsonStart));
+      } catch {
+        continue;
+      }
+
+      const entryService = String(entry.ServiceName ?? '');
+      const router = String(entry.RouterName ?? '');
+      if (entryService !== serviceName && router !== serviceName) continue;
+
+      const target = String(entry.ServiceAddr ?? entry.ServiceURL ?? 'unknown');
+      const status = String(entry.DownstreamStatus ?? entry.OriginStatus ?? 'unknown');
+      const current = byTarget.get(target) ?? {
+        target,
+        requests: 0,
+        percent: 0,
+        statusCodes: {},
+      };
+
+      current.requests += 1;
+      current.statusCodes[status] = (current.statusCodes[status] ?? 0) + 1;
+      current.lastPath = typeof entry.RequestPath === 'string' ? entry.RequestPath : current.lastPath;
+      current.lastSeen = typeof entry.StartUTC === 'string' ? entry.StartUTC : current.lastSeen;
+      byTarget.set(target, current);
+      total += 1;
+    }
+
+    return [...byTarget.values()]
+      .map((item) => ({
+        ...item,
+        percent: total > 0 ? Math.round((item.requests / total) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.requests - a.requests);
+  }
+}
+
+interface ReplicaTraffic {
+  target: string;
+  requests: number;
+  percent: number;
+  statusCodes: Record<string, number>;
+  lastPath?: string;
+  lastSeen?: string;
 }

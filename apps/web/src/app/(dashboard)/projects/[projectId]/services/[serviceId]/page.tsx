@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Activity, ChevronRight, Cpu, HardDrive, Network, Play, RefreshCw, RotateCcw, Save, Square } from 'lucide-react';
+import { Activity, BarChart3, ChevronRight, Cpu, HardDrive, Network, Play, RefreshCw, RotateCcw, Save, Server, ShieldAlert, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { clsx } from 'clsx';
-import { servicesApi, deploymentsApi, buildsApi, Service, Deployment } from '@/lib/api';
+import { servicesApi, deploymentsApi, buildsApi, Service, Deployment, TrafficStats } from '@/lib/api';
 import { TranslationKey, useI18n } from '@/lib/i18n';
 import DeploymentList from '@/components/deployments/DeploymentList';
 import StatusBadge from '@/components/deployments/DeploymentStatus';
@@ -20,6 +20,7 @@ export default function ServiceDetailPage() {
   const [view, setView] = useState<'deployments' | 'buildLogs' | 'terminal'>('deployments');
   const [portDraft, setPortDraft] = useState('');
   const [replicasDraft, setReplicasDraft] = useState('');
+  const [lbMaxInFlightDraft, setLbMaxInFlightDraft] = useState('');
   const [savingPort, setSavingPort] = useState(false);
   const [containerAction, setContainerAction] = useState<'start' | 'stop' | 'restart' | null>(null);
 
@@ -44,7 +45,7 @@ export default function ServiceDetailPage() {
   const { data: traffic } = useSWR(
     service?.activeDeploymentId ? `traffic:${service.activeDeploymentId}` : null,
     () => deploymentsApi.traffic(serviceId, service!.activeDeploymentId!).then((r) => r.data),
-    { refreshInterval: 10000 },
+    { refreshInterval: 2000 },
   );
 
   const activeDeployment = useMemo(
@@ -56,7 +57,8 @@ export default function ServiceDetailPage() {
     if (!service) return;
     setPortDraft(String(service.port));
     setReplicasDraft(String(service.replicas ?? 1));
-  }, [service?.port, service?.replicas]);
+    setLbMaxInFlightDraft(String(service.lbMaxInFlight ?? 1000));
+  }, [service?.port, service?.replicas, service?.lbMaxInFlight]);
 
   async function handleTriggerBuild() {
     try {
@@ -83,6 +85,7 @@ export default function ServiceDetailPage() {
   async function handleSavePort() {
     const nextPort = Number(portDraft);
     const nextReplicas = Number(replicasDraft);
+    const nextLbMaxInFlight = Number(lbMaxInFlightDraft);
     if (!Number.isInteger(nextPort) || nextPort < 1 || nextPort > 65535) {
       toast.error(t('invalidPort'));
       return;
@@ -91,10 +94,18 @@ export default function ServiceDetailPage() {
       toast.error(t('invalidReplicas'));
       return;
     }
+    if (!Number.isInteger(nextLbMaxInFlight) || nextLbMaxInFlight < 1 || nextLbMaxInFlight > 100000) {
+      toast.error(t('invalidLbMaxInFlight'));
+      return;
+    }
 
     try {
       setSavingPort(true);
-      await servicesApi.update(serviceId, { port: nextPort, replicas: nextReplicas });
+      await servicesApi.update(serviceId, {
+        port: nextPort,
+        replicas: nextReplicas,
+        lbMaxInFlight: nextLbMaxInFlight,
+      });
       toast.success(t('portUpdated'));
       mutateService();
     } catch {
@@ -167,6 +178,7 @@ export default function ServiceDetailPage() {
                 <span className="font-mono">{service.gitBranch}</span>
                 <span>{t('port')} {service.port}</span>
                 <span>{t('replicas')} {service.replicas ?? 1}</span>
+                <span>{t('lbMaxInFlight')} {service.lbMaxInFlight ?? 1000}</span>
                 {activeDeployment && <span>v{activeDeployment.version}</span>}
               </div>
               {service.domains?.[0] && (
@@ -197,7 +209,14 @@ export default function ServiceDetailPage() {
               />
               <button
                 onClick={handleSavePort}
-                disabled={savingPort || (portDraft === String(service.port) && replicasDraft === String(service.replicas ?? 1))}
+                disabled={
+                  savingPort ||
+                  (
+                    portDraft === String(service.port) &&
+                    replicasDraft === String(service.replicas ?? 1) &&
+                    lbMaxInFlightDraft === String(service.lbMaxInFlight ?? 1000)
+                  )
+                }
                 className="inline-flex h-full w-10 items-center justify-center border-l border-slate-200 text-slate-500 transition-colors hover:bg-white hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white"
                 title={t('saveRuntime')}
               >
@@ -216,6 +235,20 @@ export default function ServiceDetailPage() {
                 value={replicasDraft}
                 onChange={(e) => setReplicasDraft(e.target.value.replace(/\D/g, '').slice(0, 2))}
                 className="h-full w-14 bg-transparent px-3 text-sm font-semibold text-slate-950 outline-none dark:text-white"
+              />
+            </div>
+            <div className="flex h-10 items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm transition-colors focus-within:border-brand-500 dark:border-slate-700 dark:bg-slate-950">
+              <label htmlFor="service-lb-max" className="border-r border-slate-200 px-3 text-xs font-semibold uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                {t('lbMaxInFlight')}
+              </label>
+              <input
+                id="service-lb-max"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={lbMaxInFlightDraft}
+                onChange={(e) => setLbMaxInFlightDraft(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="h-full w-20 bg-transparent px-3 text-sm font-semibold text-slate-950 outline-none dark:text-white"
               />
             </div>
             <button
@@ -283,6 +316,8 @@ export default function ServiceDetailPage() {
         hasStats={Boolean(stats)}
         t={t}
       />
+
+      <LoadBalancerCard service={service} traffic={traffic} t={t} />
 
       <div className="mb-4 inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {[
@@ -358,6 +393,291 @@ function ObservabilityCard({
       </div>
     </div>
   );
+}
+
+function LoadBalancerCard({
+  service,
+  traffic,
+  t,
+}: {
+  service: Service;
+  traffic?: TrafficStats;
+  t: (key: TranslationKey) => string;
+}) {
+  const replicas = traffic?.replicaRequests ?? [];
+  const rejected = replicas.filter((replica) => replica.target === 'unknown');
+  const routedReplicas = replicas.filter((replica) => replica.target !== 'unknown');
+  const maxRequests = traffic?.lbMaxInFlight ?? service.lbMaxInFlight ?? 1000;
+  const sampleSize = traffic?.sampleSize ?? 0;
+  const routedRequests = routedReplicas.reduce((sum, replica) => sum + replica.requests, 0);
+  const rejectedRequests = rejected.reduce((sum, replica) => sum + replica.requests, 0);
+  const expectedReplicas = Math.max(service.replicas ?? routedReplicas.length ?? 1, 1);
+  const slots = Array.from({ length: expectedReplicas }, (_, index) => {
+    const replicaNumber = index + 1;
+    return routedReplicas.find((replica) => getReplicaNumber(replica.target) === replicaNumber) ?? routedReplicas[index] ?? null;
+  });
+  const maxReplicaRequests = Math.max(...slots.map((replica) => replica?.requests ?? 0), 1);
+
+  return (
+    <div className="mb-8 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">{t('loadBalancer')}</h2>
+          </div>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('refreshEvery2s')}</span>
+        </div>
+      </div>
+
+      <div className="p-5">
+        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+          <LoadBalancerStat label={t('loadBalancerLimit')} value={maxRequests.toLocaleString()} />
+          <LoadBalancerStat label={t('recentSample')} value={sampleSize.toLocaleString()} />
+          <LoadBalancerStat label={t('routedRequests')} value={routedRequests.toLocaleString()} />
+          <LoadBalancerStat label={t('activeTargets')} value={`${routedReplicas.length}/${expectedReplicas}`} />
+        </div>
+
+        <div className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.35fr]">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-950 dark:text-white">{t('trafficFlow')}</h3>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {traffic?.available ? Object.entries(traffic.requestsByCode).map(([code, count]) => `${code}: ${count}`).join(' | ') : ''}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <FlowNode label="HTTP" value={sampleSize.toLocaleString()} />
+              <FlowArrow />
+              <FlowNode label={t('loadBalancer')} value="Traefik" highlight />
+              <FlowArrow />
+              <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                {slots.map((replica, index) => (
+                  <div
+                    key={`${replica?.target ?? 'empty'}-${index}`}
+                    className={clsx(
+                      'rounded-lg border p-3',
+                      replica
+                        ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/30'
+                        : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900',
+                    )}
+                  >
+                    <div className="mb-1 flex items-center gap-2">
+                      <Server className={clsx('h-4 w-4', replica ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400')} />
+                      <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                        {t('container')} {index + 1}
+                      </span>
+                    </div>
+                    <div className="truncate font-mono text-xs font-semibold text-slate-950 dark:text-white">
+                      {replica ? formatTarget(replica.target) : t('waiting')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-950 dark:text-white">{t('replicaDistribution')}</h3>
+              {rejectedRequests > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  {rejectedRequests.toLocaleString()} {t('rejectedTraffic').toLowerCase()}
+                </span>
+              )}
+            </div>
+
+            {slots.every((replica) => !replica) ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                {t('noTrafficYet')}
+              </div>
+            ) : (
+              <div className="flex h-52 items-end gap-3 rounded-lg bg-white px-4 pb-4 pt-6 dark:bg-slate-900">
+                {slots.map((replica, index) => {
+                  const percentOfMax = ((replica?.requests ?? 0) / maxReplicaRequests) * 100;
+                  return (
+                    <div key={`${replica?.target ?? 'bar'}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                      <div className="flex h-32 w-full items-end justify-center">
+                        <div
+                          className={clsx(
+                            'w-full max-w-16 rounded-t-md transition-all duration-500',
+                            getReplicaBarColor(index),
+                          )}
+                          style={{ height: `${replica ? Math.max(percentOfMax, 8) : 2}%` }}
+                          title={replica ? `${replica.requests} ${t('requests').toLowerCase()}` : t('waiting')}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-slate-950 dark:text-white">
+                          {(replica?.requests ?? 0).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {t('container')} {index + 1}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-950 dark:text-white">{t('containerTargets')}</h3>
+          <span className="text-xs text-slate-500 dark:text-slate-400">{t('targetReplica')}</span>
+        </div>
+
+        {slots.every((replica) => !replica) ? (
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-400">
+            {t('noTrafficYet')}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {slots.map((replica, index) => (
+              <ReplicaTargetCard
+                key={`${replica?.target ?? 'target'}-${index}`}
+                replica={replica}
+                replicaNumber={index + 1}
+                total={Math.max(routedRequests, 1)}
+                t={t}
+              />
+            ))}
+          </div>
+        )}
+
+        {rejectedRequests > 0 && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/70 dark:bg-amber-950/25">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+              <ShieldAlert className="h-4 w-4" />
+              {t('rejectedTraffic')}
+            </div>
+            <div className="space-y-2">
+              {rejected.map((replica) => (
+                <div key={replica.target} className="flex flex-wrap items-center justify-between gap-2 text-sm text-amber-900 dark:text-amber-100">
+                  <span>{replica.requests.toLocaleString()} {t('requests').toLowerCase()} / {replica.percent.toFixed(1)}%</span>
+                  <span className="text-xs opacity-80">
+                    {t('statusCodes')}: {Object.entries(replica.statusCodes).map(([code, count]) => `${code} ${count}`).join(', ')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LoadBalancerStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+      <div className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-1 text-2xl font-bold text-slate-950 dark:text-white">{value}</div>
+    </div>
+  );
+}
+
+function FlowNode({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div
+      className={clsx(
+        'min-w-24 rounded-lg border px-3 py-3 text-center',
+        highlight
+          ? 'border-brand-200 bg-brand-50 text-brand-800 dark:border-brand-800 dark:bg-brand-950/40 dark:text-brand-100'
+          : 'border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100',
+      )}
+    >
+      <div className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-bold">{value}</div>
+    </div>
+  );
+}
+
+function FlowArrow() {
+  return <div className="h-px w-8 shrink-0 bg-slate-300 after:block after:h-2 after:w-2 after:translate-x-7 after:-translate-y-1 after:rotate-45 after:border-r after:border-t after:border-slate-300 dark:bg-slate-700 dark:after:border-slate-700" />;
+}
+
+function ReplicaTargetCard({
+  replica,
+  replicaNumber,
+  total,
+  t,
+}: {
+  replica: TrafficStats['replicaRequests'][number] | null;
+  replicaNumber: number;
+  total: number;
+  t: (key: TranslationKey) => string;
+}) {
+  const requests = replica?.requests ?? 0;
+  const percent = Math.round((requests / total) * 1000) / 10;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className={clsx('flex h-10 w-10 items-center justify-center rounded-lg text-white', getReplicaIconColor(replicaNumber - 1))}>
+            <Server className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+              {t('container')} {replicaNumber}
+            </div>
+            <div className="break-all font-mono text-sm font-bold text-slate-950 dark:text-white">
+              {replica ? formatTarget(replica.target) : t('waiting')}
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-xl font-bold text-slate-950 dark:text-white">{requests.toLocaleString()}</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{percent.toFixed(1)}%</div>
+        </div>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+        <div
+          className={clsx('h-full rounded-full transition-all duration-500', getReplicaBarColor(replicaNumber - 1))}
+          style={{ width: `${replica ? Math.max(percent, 4) : 0}%` }}
+        />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+        {replica && <span>{t('statusCodes')}: {Object.entries(replica.statusCodes).map(([code, count]) => `${code} ${count}`).join(', ')}</span>}
+        {replica?.lastPath && <span className="break-all">{replica.lastPath}</span>}
+      </div>
+    </div>
+  );
+}
+
+function getReplicaNumber(target: string): number | null {
+  const match = target.match(/-(\d+):\d+$/);
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+function formatTarget(target: string): string {
+  return target.replace(/:\d+$/, '');
+}
+
+function getReplicaBarColor(index: number): string {
+  return [
+    'bg-emerald-500 dark:bg-emerald-400',
+    'bg-sky-500 dark:bg-sky-400',
+    'bg-violet-500 dark:bg-violet-400',
+    'bg-amber-500 dark:bg-amber-400',
+    'bg-rose-500 dark:bg-rose-400',
+    'bg-cyan-500 dark:bg-cyan-400',
+  ][index % 6];
+}
+
+function getReplicaIconColor(index: number): string {
+  return [
+    'bg-emerald-600',
+    'bg-sky-600',
+    'bg-violet-600',
+    'bg-amber-600',
+    'bg-rose-600',
+    'bg-cyan-600',
+  ][index % 6];
 }
 
 function ObservationItem({ label, value }: { label: string; value: ReactNode }) {

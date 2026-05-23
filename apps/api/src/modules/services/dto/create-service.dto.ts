@@ -58,6 +58,13 @@ export class CreateServiceDto {
   @IsOptional()
   replicas?: number;
 
+  @ApiPropertyOptional({ example: 1000 })
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  @IsOptional()
+  lbMaxInFlight?: number;
+
   @ApiPropertyOptional({ example: 512 })
   @IsInt()
   @Min(64)
@@ -105,6 +112,13 @@ export class UpdateServiceDto {
   @Max(10)
   @IsOptional()
   replicas?: number;
+
+  @ApiPropertyOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  @IsOptional()
+  lbMaxInFlight?: number;
 
   @ApiPropertyOptional()
   @IsInt()
