@@ -199,6 +199,11 @@ export class BuildsProcessor {
 
   private createNodeDockerfile(contextDir: string, isNext: boolean): string {
     const packageManager = this.detectPackageManager(contextDir);
+    const lockfileCopy = {
+      npm: 'COPY package*.json ./',
+      pnpm: 'COPY package.json pnpm-lock.yaml ./',
+      yarn: 'COPY package.json yarn.lock ./',
+    }[packageManager];
     const install = {
       npm: 'npm install',
       pnpm: 'npm install -g pnpm && pnpm install --frozen-lockfile',
@@ -217,8 +222,7 @@ export class BuildsProcessor {
 
     return `FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json ./
-COPY package-lock.json* pnpm-lock.yaml* yarn.lock* ./
+${lockfileCopy}
 RUN ${install}
 
 FROM node:20-alpine AS builder
